@@ -13,3 +13,9 @@ metadata: { name: mariadb-operator }
 apiVersion: v1
 kind: Namespace
 metadata: { name: monitoring }
+---
+# The application namespace (MariaDB, KeyDB, CTFd live here). Created by the
+# infrastructure Kustomization so the data/cache/ctfd apps that depend on it have
+apiVersion: v1
+kind: Namespace
+metadata: { name: ctfd }

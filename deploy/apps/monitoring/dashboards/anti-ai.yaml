@@ -1,0 +1,45 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dashboard-anti-ai
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  anti-ai.json: |
+    {
+      "title": "CTF School — Workspace Anti-AI",
+      "uid": "ctf-anti-ai",
+      "schemaVersion": 39,
+      "tags": ["ctf-school", "security"],
+      "time": {"from": "now-3h", "to": "now"},
+      "refresh": "30s",
+      "templating": {"list": [
+        {"name": "datasource", "type": "datasource", "query": "prometheus", "current": {}, "hide": 0}
+      ]},
+      "panels": [
+        {"id": 1, "type": "stat", "title": "Sessions reporting automation", "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
+         "datasource": {"type": "prometheus", "uid": "${datasource}"},
+         "targets": [{"expr": "count(workspace_guard_webdriver == 1) or vector(0)", "datasource": {"type": "prometheus", "uid": "${datasource}"}}]},
+        {"id": 2, "type": "stat", "title": "Auth denials (5m)", "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0},
+         "datasource": {"type": "prometheus", "uid": "${datasource}"},
+         "targets": [{"expr": "sum(increase(workspace_guard_auth_denied_total[5m])) or vector(0)", "datasource": {"type": "prometheus", "uid": "${datasource}"}}]},
+        {"id": 3, "type": "stat", "title": "Active workspaces reporting", "gridPos": {"h": 4, "w": 6, "x": 12, "y": 0},
+         "datasource": {"type": "prometheus", "uid": "${datasource}"},
+         "targets": [{"expr": "count(workspace_guard_beacons_total) or vector(0)", "datasource": {"type": "prometheus", "uid": "${datasource}"}}]},
+        {"id": 4, "type": "table", "title": "Anomaly score by team (higher = more suspicious)", "gridPos": {"h": 9, "w": 24, "x": 0, "y": 4},
+         "description": "Heuristic only — report for the organizer, never auto-blocked.",
+         "datasource": {"type": "prometheus", "uid": "${datasource}"},
+         "fieldConfig": {"defaults": {"unit": "short", "thresholds": {"steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 0.3}, {"color": "red", "value": 0.6}]}, "custom": {"displayMode": "color-background"}}},
+         "targets": [{"expr": "workspace_guard_anomaly_score * on (team) group_left(owner) (max by (team, owner) (labsession_info))", "format": "table", "instant": true, "datasource": {"type": "prometheus", "uid": "${datasource}"}}]},
+        {"id": 5, "type": "timeseries", "title": "Robotic (superhuman-timing) events /s by team", "gridPos": {"h": 8, "w": 12, "x": 0, "y": 13},
+         "datasource": {"type": "prometheus", "uid": "${datasource}"},
+         "targets": [{"expr": "sum by (team) (rate(workspace_guard_robotic_events_total[5m]))", "legendFormat": "{{team}}", "datasource": {"type": "prometheus", "uid": "${datasource}"}}]},
+        {"id": 6, "type": "timeseries", "title": "Input activity (mouse vs keys) /s", "gridPos": {"h": 8, "w": 12, "x": 12, "y": 13},
+         "datasource": {"type": "prometheus", "uid": "${datasource}"},
+         "targets": [
+           {"expr": "sum(rate(workspace_guard_mouse_events_total[5m]))", "legendFormat": "mouse", "datasource": {"type": "prometheus", "uid": "${datasource}"}},
+           {"expr": "sum(rate(workspace_guard_key_events_total[5m]))", "legendFormat": "keys", "datasource": {"type": "prometheus", "uid": "${datasource}"}}
+         ]}
+      ]
+    }

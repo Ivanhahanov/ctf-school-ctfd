@@ -1,0 +1,74 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: keydb
+  namespace: ctfd
+spec:
+  serviceName: keydb-headless
+  replicas: 2
+  selector:
+    matchLabels:
+      app: keydb
+  template:
+    metadata:
+      labels:
+        app: keydb
+    spec:
+      containers:
+        - name: keydb
+          image: eqalpha/keydb:latest
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+              ORDINAL=${HOSTNAME##*-}
+              NS=$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)
+              BASE="--save \"\" --appendonly no --activerehashing yes --hz 25 --protected-mode no"
+              if [ "$ORDINAL" != "0" ]; then
+                MASTER="keydb-0.keydb-headless.${NS}.svc.cluster.local"
+                exec keydb-server \
+                  --save "" \
+                  --appendonly no \
+                  --activerehashing yes \
+                  --hz 25 \
+                  --protected-mode no \
+                  --active-replica yes \
+                  --replicaof "$MASTER" 6379
+              else
+                exec keydb-server \
+                  --save "" \
+                  --appendonly no \
+                  --activerehashing yes \
+                  --hz 25 \
+                  --protected-mode no
+              fi
+          ports:
+            - name: keydb
+              containerPort: 6379
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          livenessProbe:
+            exec:
+              command: ["keydb-cli", "ping"]
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          readinessProbe:
+            exec:
+              command: ["keydb-cli", "ping"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: keydb
+                topologyKey: kubernetes.io/hostname

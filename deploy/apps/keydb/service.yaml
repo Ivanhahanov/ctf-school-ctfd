@@ -1,0 +1,14 @@
+# Points only to pod-0 (primary) for write consistency
+apiVersion: v1
+kind: Service
+metadata:
+  name: keydb
+  namespace: ctfd
+spec:
+  selector:
+    app: keydb
+    statefulset.kubernetes.io/pod-name: keydb-0
+  ports:
+    - name: keydb
+      port: 6379
+      targetPort: 6379

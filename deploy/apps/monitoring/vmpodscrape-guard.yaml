@@ -1,0 +1,16 @@
+# Scrape every per-session workspace guard's /metrics across all lab namespaces.
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMPodScrape
+metadata:
+  name: workspace-guard
+  namespace: monitoring
+spec:
+  namespaceSelector:
+    any: true
+  selector:
+    matchLabels:
+      ctf.school/role: workspace
+  podMetricsEndpoints:
+    - port: web          # the guard's named container port (8080)
+      path: /metrics
+      interval: 30s

@@ -1,0 +1,57 @@
+{% extends "admin/challenges/update.html" %}
+
+{% block value %}
+<div class="form-group">
+    <label>Current Value<br>
+        <small class="form-text text-muted">Live value (recalculated on each solve).</small>
+    </label>
+    <input type="number" class="form-control" name="value" value="{{ challenge.value }}" disabled>
+</div>
+
+<div class="form-group">
+    <label>Initial Value</label>
+    <input type="number" class="form-control" name="initial" value="{{ challenge.initial }}" required>
+</div>
+
+<div class="form-group">
+    <label>Decay Function</label>
+    <select name="function" class="custom-select">
+        <option value="logarithmic" {% if challenge.function == "logarithmic" %}selected{% endif %}>Logarithmic</option>
+        <option value="linear"      {% if challenge.function == "linear"      %}selected{% endif %}>Linear</option>
+    </select>
+</div>
+
+<div class="form-group">
+    <label>Decay</label>
+    <input type="number" class="form-control" name="decay" min="1" value="{{ challenge.decay }}" required>
+</div>
+
+<div class="form-group">
+    <label>Minimum Value</label>
+    <input type="number" class="form-control" name="minimum" value="{{ challenge.minimum }}" required>
+</div>
+
+<div class="form-group">
+    <label>Lab Space Ref<br>
+        <small class="form-text text-muted">Cluster-scoped <code>LabSpace</code> CRD name.</small>
+    </label>
+    <input type="text" class="form-control" name="lab_space_ref" value="{{ challenge.lab_space_ref }}" required>
+</div>
+
+<div class="form-group">
+    <label>Flag Service<br>
+        <small class="form-text text-muted">
+            <code>LabService</code> CRD name whose HMAC env-var becomes the flag.
+            Leave empty to fall back to static CTFd flags.
+        </small>
+    </label>
+    <input type="text" class="form-control" name="flag_service" value="{{ challenge.flag_service }}">
+</div>
+
+<div class="form-group">
+    <label>Flag Template<br>
+        <small class="form-text text-muted">Python <code>%</code>-format string, e.g. <code>{{ 'CTF{%s}' }}</code>.</small>
+    </label>
+    <input type="text" class="form-control" name="flag_template" value="{{ challenge.flag_template }}">
+</div>
+{% endblock %}

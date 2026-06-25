@@ -1,0 +1,66 @@
+apiVersion: k8s.mariadb.com/v1alpha1
+kind: MariaDB
+metadata:
+  name: ctfd-db
+  namespace: ctfd
+spec:
+  rootPasswordSecretKeyRef:
+    name: mariadb-credentials
+    key: root-password
+
+  database: ctfd
+  username: ctfd
+  passwordSecretKeyRef:
+    name: mariadb-credentials
+    key: password
+
+  image: docker.io/mariadb:11.4
+  port: 3306
+
+  replicas: 3
+
+  galera:
+    enabled: true
+    primary:
+      podIndex: 0
+      autoFailover: true
+    recovery:
+      enabled: true
+      podRecoveryTimeout: 5m
+      podSyncTimeout: 5m
+
+  myCnf: |
+    [mariadb]
+    bind-address=*
+    default_storage_engine=InnoDB
+    binlog_format=row
+    innodb_autoinc_lock_mode=2
+    character-set-server=utf8mb4
+    collation-server=utf8mb4_unicode_ci
+    wait_timeout=28800
+    log_warnings=0
+
+  storage:
+    size: 4Gi
+
+  resources:
+    requests:
+      cpu: 300m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+  podDisruptionBudget:
+    maxUnavailable: "33%"
+
+  # spread across workers — preferred so kind doesn't block scheduling
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            labelSelector:
+              matchLabels:
+                app.kubernetes.io/instance: ctfd-db
+            topologyKey: kubernetes.io/hostname

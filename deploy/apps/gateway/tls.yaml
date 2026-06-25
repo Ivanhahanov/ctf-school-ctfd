@@ -1,0 +1,27 @@
+# Self-signed wildcard cert for local/dev so the secure-cookie workspace-auth
+# flow runs over real TLS. Browsers will warn (untrusted self-signed) — for
+# production, swap issuerRef to a real ACME/Let's Encrypt ClusterIssuer; the
+# Certificate's dnsNames and the Gateway listeners stay the same.
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: selfsigned
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: ctfd-tls
+  namespace: ctfd
+spec:
+  secretName: ctfd-tls
+  duration: 8760h   # 1 year
+  privateKey:
+    rotationPolicy: Always
+  dnsNames:
+    - ctf.school.local
+    - "*.ctf.school.local"   # per-session workspaces + exposed services
+  issuerRef:
+    name: selfsigned
+    kind: ClusterIssuer

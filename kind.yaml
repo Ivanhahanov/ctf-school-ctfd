@@ -1,0 +1,14 @@
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: ctfd
+networking:
+  # Cilium is installed as the CNI (see `make cilium`) — it enforces the
+  # NetworkPolicies that isolate per-session lab namespaces. kindnet is disabled
+  # so it doesn't conflict.
+  disableDefaultCNI: true
+  # Cilium provides pod networking; keep kube-proxy (Cilium runs alongside it).
+nodes:
+  - role: control-plane
+  - role: worker   # mariadb-0
+  - role: worker   # mariadb-1
+  - role: worker   # mariadb-2 / ctfd / keydb

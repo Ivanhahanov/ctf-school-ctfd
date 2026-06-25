@@ -1,0 +1,28 @@
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: BackendTrafficPolicy
+metadata:
+  name: ctfd
+  namespace: ctfd
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: ctfd
+  timeout:
+    http:
+      # Default is 1 hour — far longer than gunicorn's keep-alive, so gunicorn
+      # closes pooled connections first and Envoy reuses dead ones. Closing well
+      # before gunicorn's 75s keep-alive makes Envoy the side that closes idle
+      # connections, eliminating the ERR_EMPTY_RESPONSE race.
+      connectionIdleTimeout: 30s
+  # Safety net: if a pooled connection is still closed mid-flight (any residual
+  # race), retry transparently on a fresh connection. These triggers only fire
+  # before response headers arrive, so the request was not processed — safe to
+  # retry even for non-idempotent methods.
+  retry:
+    numRetries: 2
+    retryOn:
+      triggers:
+        - connect-failure
+        - reset
+        - refused-stream

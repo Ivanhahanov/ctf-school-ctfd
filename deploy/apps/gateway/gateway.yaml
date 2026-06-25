@@ -1,0 +1,51 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: ctfd
+  namespace: ctfd
+spec:
+  gatewayClassName: envoy
+  listeners:
+    # CTFd itself.
+    - name: http
+      protocol: HTTP
+      port: 80
+      hostname: ctf.school.local
+      allowedRoutes:
+        namespaces:
+          from: Same
+    # Per-session workspaces (workspace-<user>-<lab>.ctf.school.local) and any
+    # exposed challenge services. The controller creates these HTTPRoutes in the
+    # per-session `lab-session-*` namespaces, so cross-namespace attachment must
+    # be allowed (from: All). The exact-host listener above does NOT match these
+    # subdomains, so they bind only here.
+    - name: http-wildcard
+      protocol: HTTP
+      port: 80
+      hostname: "*.ctf.school.local"
+      allowedRoutes:
+        namespaces:
+          from: All
+    - name: https
+      protocol: HTTPS
+      port: 443
+      hostname: ctf.school.local
+      allowedRoutes:
+        namespaces:
+          from: Same
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: ctfd-tls
+    # TLS termination for per-session workspaces and exposed services.
+    - name: https-wildcard
+      protocol: HTTPS
+      port: 443
+      hostname: "*.ctf.school.local"
+      allowedRoutes:
+        namespaces:
+          from: All
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: ctfd-tls

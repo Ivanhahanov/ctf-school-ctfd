@@ -1,0 +1,17 @@
+# Expose Grafana at grafana.ctf.school.local through the shared gateway
+# (covered by the *.ctf.school.local wildcard listener + cert).
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: grafana
+  namespace: monitoring
+spec:
+  parentRefs:
+    - name: ctfd
+      namespace: ctfd
+  hostnames:
+    - grafana.ctf.school.local
+  rules:
+    - backendRefs:
+        - name: vm-grafana
+          port: 80

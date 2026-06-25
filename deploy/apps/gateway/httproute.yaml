@@ -1,0 +1,55 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: ctfd
+  namespace: ctfd
+spec:
+  # CTFd content is served on HTTPS only (cookies are Secure). HTTP is handled by
+  # the redirect route below.
+  parentRefs:
+    - name: ctfd
+      sectionName: https
+  hostnames:
+    - ctf.school.local
+  rules:
+    # CTFd's notification stream is Server-Sent Events: a single long-lived
+    # response. The default Envoy route timeout (15s) cuts it mid-stream, which
+    # both breaks notifications and poisons the browser's keep-alive connection
+    # pool — causing collateral ERR_EMPTY_RESPONSE on other requests (e.g. the
+    # lab status poll). Disable the request timeout for this route only.
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /events
+      backendRefs:
+        - name: ctfd
+          port: 8000
+      timeouts:
+        request: "0s"
+    # Everything else.
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: ctfd
+          port: 8000
+---
+# Bounce all plain HTTP to HTTPS (Secure cookies require https).
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: ctfd-redirect
+  namespace: ctfd
+spec:
+  parentRefs:
+    - name: ctfd
+      sectionName: http
+  hostnames:
+    - ctf.school.local
+  rules:
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            statusCode: 301

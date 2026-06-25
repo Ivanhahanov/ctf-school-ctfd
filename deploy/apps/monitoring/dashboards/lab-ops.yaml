@@ -1,0 +1,53 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dashboard-lab-ops
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  lab-ops.json: |
+    {
+      "title": "CTF School — Lab Operations",
+      "uid": "ctf-lab-ops",
+      "schemaVersion": 39,
+      "tags": ["ctf-school"],
+      "time": {"from": "now-3h", "to": "now"},
+      "refresh": "30s",
+      "templating": {"list": [
+        {"name": "datasource", "type": "datasource", "query": "prometheus",
+         "current": {}, "hide": 0}
+      ]},
+      "panels": [
+        {"id": 1, "type": "stat", "title": "Running labs", "gridPos": {"h": 4, "w": 4, "x": 0, "y": 0},
+         "datasource": {"type": "prometheus", "uid": "${datasource}"},
+         "targets": [{"expr": "count(labsession_info{phase=\"Running\"}) or vector(0)", "datasource": {"type": "prometheus", "uid": "${datasource}"}}]},
+        {"id": 2, "type": "stat", "title": "Total labs (all phases)", "gridPos": {"h": 4, "w": 4, "x": 4, "y": 0},
+         "datasource": {"type": "prometheus", "uid": "${datasource}"},
+         "targets": [{"expr": "count(labsession_info) or vector(0)", "datasource": {"type": "prometheus", "uid": "${datasource}"}}]},
+        {"id": 3, "type": "stat", "title": "Teams with a lab", "gridPos": {"h": 4, "w": 4, "x": 8, "y": 0},
+         "datasource": {"type": "prometheus", "uid": "${datasource}"},
+         "targets": [{"expr": "count(count by (team) (labsession_info)) or vector(0)", "datasource": {"type": "prometheus", "uid": "${datasource}"}}]},
+        {"id": 4, "type": "timeseries", "title": "Labs by phase", "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
+         "datasource": {"type": "prometheus", "uid": "${datasource}"},
+         "targets": [{"expr": "count by (phase) (labsession_info)", "legendFormat": "{{phase}}", "datasource": {"type": "prometheus", "uid": "${datasource}"}}]},
+        {"id": 5, "type": "bargauge", "title": "Running labs by team", "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
+         "datasource": {"type": "prometheus", "uid": "${datasource}"},
+         "targets": [{"expr": "count by (owner, team) (labsession_info{phase=\"Running\"})", "legendFormat": "{{owner}}", "datasource": {"type": "prometheus", "uid": "${datasource}"}}]},
+        {"id": 6, "type": "timeseries", "title": "CPU by lab namespace (cores)", "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12},
+         "datasource": {"type": "prometheus", "uid": "${datasource}"}, "fieldConfig": {"defaults": {"unit": "short"}},
+         "targets": [{"expr": "sum by (namespace) (rate(container_cpu_usage_seconds_total{namespace=~\"lab-session-.*\"}[5m]))", "legendFormat": "{{namespace}}", "datasource": {"type": "prometheus", "uid": "${datasource}"}}]},
+        {"id": 7, "type": "timeseries", "title": "Memory by lab namespace", "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12},
+         "datasource": {"type": "prometheus", "uid": "${datasource}"}, "fieldConfig": {"defaults": {"unit": "bytes"}},
+         "targets": [{"expr": "sum by (namespace) (container_memory_working_set_bytes{namespace=~\"lab-session-.*\"})", "legendFormat": "{{namespace}}", "datasource": {"type": "prometheus", "uid": "${datasource}"}}]},
+        {"id": 8, "type": "gauge", "title": "Cluster CPU used %", "gridPos": {"h": 8, "w": 6, "x": 0, "y": 20},
+         "datasource": {"type": "prometheus", "uid": "${datasource}"}, "fieldConfig": {"defaults": {"unit": "percent", "max": 100}},
+         "targets": [{"expr": "100 * sum(rate(container_cpu_usage_seconds_total[5m])) / sum(machine_cpu_cores)", "datasource": {"type": "prometheus", "uid": "${datasource}"}}]},
+        {"id": 9, "type": "gauge", "title": "Cluster memory used %", "gridPos": {"h": 8, "w": 6, "x": 6, "y": 20},
+         "datasource": {"type": "prometheus", "uid": "${datasource}"}, "fieldConfig": {"defaults": {"unit": "percent", "max": 100}},
+         "targets": [{"expr": "100 * sum(container_memory_working_set_bytes) / sum(machine_memory_bytes)", "datasource": {"type": "prometheus", "uid": "${datasource}"}}]},
+        {"id": 10, "type": "table", "title": "Active labs", "gridPos": {"h": 8, "w": 12, "x": 12, "y": 20},
+         "datasource": {"type": "prometheus", "uid": "${datasource}"},
+         "targets": [{"expr": "labsession_info", "format": "table", "instant": true, "datasource": {"type": "prometheus", "uid": "${datasource}"}}]}
+      ]
+    }

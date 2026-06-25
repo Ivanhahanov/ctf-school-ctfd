@@ -1,0 +1,24 @@
+# Each project is its own repo → its own Flux GitRepository source. The
+# `flux-system` source (this ctfd repo) is created by `flux bootstrap`; the two
+# below point at the sibling repos. Set the real URLs/refs when you push them.
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: controller
+  namespace: flux-system
+spec:
+  interval: 5m
+  url: https://github.com/your-org/ctf-school-controller   # ← set me
+  ref:
+    branch: main
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: challenges
+  namespace: flux-system
+spec:
+  interval: 5m
+  url: https://github.com/your-org/ctf-school-challenges    # ← set me
+  ref:
+    branch: main

@@ -1,0 +1,20 @@
+# Envoy Gateway provisions the gateway's Service with externalTrafficPolicy:
+# Local by default. In a multi-node kind cluster the single Envoy pod runs on
+# one node, so only that node answers the LoadBalancer's NodePort — the other
+# nodes fail the cloud-provider-kind health checks. With <50% of backends
+# healthy, the LB enters Envoy "panic mode" and sprays traffic to ALL nodes,
+# including the dead ones → ~66% of requests get ERR_EMPTY_RESPONSE.
+#
+# Cluster lets kube-proxy on every node forward to the Envoy pod wherever it
+# runs, so all nodes pass the health check and no panic routing occurs.
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: EnvoyProxy
+metadata:
+  name: ctfd-proxy
+  namespace: envoy-gateway-system
+spec:
+  provider:
+    type: Kubernetes
+    kubernetes:
+      envoyService:
+        externalTrafficPolicy: Cluster

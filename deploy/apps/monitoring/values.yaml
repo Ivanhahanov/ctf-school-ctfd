@@ -1,0 +1,79 @@
+# Helm values for victoria-metrics-k8s-stack (vm/victoria-metrics-k8s-stack).
+# Provides VMSingle (storage) + vmagent (scrape) + Grafana + node-exporter +
+# kube-state-metrics + the VictoriaMetrics operator, plus built-in cluster &
+# resource dashboards. Our custom bits:
+#   - kube-state-metrics reads the LabSession CRD → lab inventory metrics
+#   - Grafana dashboard sidecar picks up our ConfigMap dashboards
+#   - guards are scraped via a VMPodScrape (see vmpodscrape-guard.yaml)
+
+victoria-metrics-operator:
+  enabled: true
+
+vmsingle:
+  spec:
+    retentionPeriod: "7d"        # plenty for a dev/CTF cluster
+    resources:
+      requests: { cpu: 100m, memory: 256Mi }
+      limits:   { cpu: "1",  memory: 1Gi }
+
+# vmagent scrapes node-exporter, kube-state-metrics, kubelet/cAdvisor, the
+# operator-managed scrape CRs (incl. our VMPodScrape for the guards), etc.
+vmagent:
+  enabled: true
+
+alertmanager:
+  enabled: false                 # not needed yet
+vmalert:
+  enabled: false
+
+defaultDashboards:
+  enabled: true                  # built-in k8s cluster/resource dashboards
+
+grafana:
+  enabled: true
+  adminPassword: "ctfschool"     # dev only — change for production
+  sidecar:
+    dashboards:
+      enabled: true
+      label: grafana_dashboard   # our dashboard ConfigMaps carry this label
+      labelValue: "1"
+      searchNamespace: ALL
+  grafana.ini:
+    server:
+      root_url: "https://grafana.ctf.school.local"
+    auth.anonymous:
+      enabled: true              # read-only view without login (dev convenience)
+      org_role: Viewer
+
+kube-state-metrics:
+  enabled: true
+  # Let KSM read our CRD so we get lab-inventory metrics with no controller code.
+  rbac:
+    extraRules:
+      - apiGroups: ["core.ctf.school"]
+        resources: ["labsessions"]
+        verbs: ["list", "watch"]
+  # Emit `labsession_info{name,team,labspace,phase} 1` per LabSession.
+  customResourceState:
+    enabled: true
+    config:
+      spec:
+        resources:
+          - groupVersionKind:
+              group: "core.ctf.school"
+              version: "v1"
+              kind: "LabSession"
+            metricNamePrefix: "labsession"
+            labelsFromPath:
+              name: [metadata, name]
+            metrics:
+              - name: "info"
+                help: "LabSession inventory by phase/team/labspace."
+                each:
+                  type: Info
+                  info:
+                    labelsFromPath:
+                      phase: [status, phase]
+                      team: [spec, userId]
+                      labspace: [spec, labSpaceRef]
+                      owner: [metadata, annotations, "ctf.school/owner"]

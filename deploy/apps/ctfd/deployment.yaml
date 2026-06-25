@@ -1,0 +1,100 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ctfd
+  namespace: ctfd
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ctfd
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 2
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: ctfd
+    spec:
+      serviceAccountName: ctfd
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+      containers:
+        - name: ctfd
+          image: ctfd-lab:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8000
+          env:
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: ctfd-secret
+                  key: secret-key
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: ctfd-secret
+                  key: database-url
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: ctfd-secret
+                  key: redis-url
+            - name: WORKERS
+              value: "2"
+            # gunicorn's default keep-alive is 2s, far shorter than how long a
+            # proxy pools upstream connections. That mismatch makes gunicorn close
+            # pooled connections out from under Envoy → ERR_EMPTY_RESPONSE. Keep
+            # them alive longer than Envoy's connectionIdleTimeout (30s) so Envoy
+            # is always the side that closes, cleanly. (gunicorn reads this env.)
+            - name: GUNICORN_CMD_ARGS
+              value: "--keep-alive=75"
+            - name: ACCESS_LOG
+              value: "-"
+            - name: ERROR_LOG
+              value: "-"
+            - name: REVERSE_PROXY
+              value: "true"
+            - name: LOG_FOLDER
+              value: "/var/log/CTFd"
+            - name: UPLOAD_PROVIDER
+              value: "filesystem"
+            - name: CTF_SCHOOL_SECRET
+              value: "ctf-school-secret-key"
+            # Base domain + scheme for workspace access cookies/links.
+            # Flip CTF_SCHEME to https once the TLS cert is in place.
+            - name: CTF_DOMAIN
+              value: "ctf.school.local"
+            - name: CTF_SCHEME
+              value: "https"
+            # Max concurrently running labs per team (user in non-team mode)
+            - name: MAX_CONCURRENT_LABS
+              value: "2"
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+            limits:
+              cpu: "2"
+              memory: 2Gi
+          livenessProbe:
+            httpGet:
+              path: /healthcheck
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 10
+          readinessProbe:
+            httpGet:
+              path: /healthcheck
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 10

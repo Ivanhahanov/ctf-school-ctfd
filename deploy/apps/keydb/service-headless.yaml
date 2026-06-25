@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: keydb-headless
+  namespace: ctfd
+spec:
+  clusterIP: None
+  selector:
+    app: keydb
+  ports:
+    - name: keydb
+      port: 6379
+      targetPort: 6379

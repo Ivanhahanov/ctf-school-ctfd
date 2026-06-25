@@ -1,0 +1,90 @@
+# Flux entrypoint for the local kind cluster.
+# `flux bootstrap … --path=gitops/clusters/kind` creates the GitRepository
+# `flux-system` (this ctfd repo); `sources.yaml` adds the controller & challenges
+# repos. These Kustomizations reconcile the platform, ordered with dependsOn.
+#
+# Paths are relative to each GitRepository's root:
+#   flux-system → the ctfd repo       (./k8s/*, ./gitops/*)
+#   controller  → the controller repo (./config/kind)
+#   challenges  → the challenges repo  (./ — its kustomization aggregates challenges)
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata: { name: infrastructure, namespace: flux-system }
+spec:
+  interval: 30m
+  path: ./deploy/infrastructure
+  prune: true
+  wait: true
+  sourceRef: { kind: GitRepository, name: flux-system }
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata: { name: data, namespace: flux-system }
+spec:
+  dependsOn: [{ name: infrastructure }]
+  interval: 30m
+  path: ./deploy/apps/mariadb
+  prune: true
+  sourceRef: { kind: GitRepository, name: flux-system }
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata: { name: cache, namespace: flux-system }
+spec:
+  dependsOn: [{ name: infrastructure }]
+  interval: 30m
+  path: ./deploy/apps/keydb
+  prune: true
+  sourceRef: { kind: GitRepository, name: flux-system }
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata: { name: ctfd, namespace: flux-system }
+spec:
+  dependsOn: [{ name: data }, { name: cache }]
+  interval: 30m
+  path: ./deploy/apps/ctfd
+  prune: true
+  sourceRef: { kind: GitRepository, name: flux-system }
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata: { name: gateway, namespace: flux-system }
+spec:
+  dependsOn: [{ name: infrastructure }, { name: ctfd }]
+  interval: 30m
+  path: ./deploy/apps/gateway
+  prune: true
+  sourceRef: { kind: GitRepository, name: flux-system }
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata: { name: monitoring-config, namespace: flux-system }
+spec:
+  dependsOn: [{ name: infrastructure }, { name: gateway }]
+  interval: 30m
+  path: ./deploy/apps/monitoring
+  prune: true
+  sourceRef: { kind: GitRepository, name: flux-system }
+---
+# Controller — from its own repo.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata: { name: controller, namespace: flux-system }
+spec:
+  dependsOn: [{ name: infrastructure }]
+  interval: 30m
+  path: ./config/kind
+  prune: true
+  sourceRef: { kind: GitRepository, name: controller }
+---
+# Challenges — from their own repo (LabSpace/LabService per challenge).
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata: { name: challenges, namespace: flux-system }
+spec:
+  dependsOn: [{ name: controller }]
+  interval: 10m
+  path: ./
+  prune: true
+  sourceRef: { kind: GitRepository, name: challenges }

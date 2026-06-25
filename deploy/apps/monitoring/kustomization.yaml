@@ -1,0 +1,10 @@
+# Monitoring config that is NOT part of the Helm release (the chart + its values
+# are an infrastructure HelmRelease): guard scrape, Grafana route, dashboards.
+# values.yaml is the Helm values (consumed by the HelmRelease), not applied here.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - vmpodscrape-guard.yaml
+  - httproute-grafana.yaml
+  - dashboards/lab-ops.yaml
+  - dashboards/anti-ai.yaml

@@ -27,8 +27,61 @@ spec:
   postBuild:
     substituteFrom:
       - { kind: ConfigMap, name: cluster-config }
-# NOTE: the app Kustomizations (data, ctfd, controller, gateway, challenges)
-# mirror clusters/kind/sync.yaml with the same `postBuild.substituteFrom`. They
-# are omitted here until the app manifests are parameterised with ${VAR}
-# placeholders (domain/scheme/image/storageClass) — that migration is what makes
-# the cloud path drop-in. Until then, point them at cloud overlays.
+---
+# Controller repo source (same repo, prod overlay).
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata: { name: controller, namespace: flux-system }
+spec:
+  interval: 5m
+  url: https://github.com/Ivanhahanov/ctf-school-controller
+  ref: { branch: main }
+---
+# Controller in prod: base (config/default) from its repo; the PROD customization
+# (registry image, HA, secure metrics, secret from a Secret, domain/scheme) is
+# applied HERE. ${...} filled from cluster-config. Requires a `ctf-school-secret`
+# Secret in controller-system (SOPS / sealed-secrets / external-secrets).
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata: { name: controller, namespace: flux-system }
+spec:
+  dependsOn: [{ name: infrastructure }]
+  interval: 30m
+  path: ./config/default
+  prune: true
+  sourceRef: { kind: GitRepository, name: controller }
+  images:
+    - name: ctf.school/controller
+      newName: "${IMAGE_REGISTRY}/ctf-school-controller"
+      newTag: "${IMAGE_TAG}"
+  patches:
+    - target: { kind: Deployment, name: controller-controller-manager }
+      patch: |
+        - op: replace
+          path: /spec/replicas
+          value: 2
+        - op: add
+          path: /spec/template/spec/containers/0/imagePullPolicy
+          value: IfNotPresent
+        - op: add
+          path: /spec/template/spec/containers/0/env
+          value:
+            - { name: CTF_DOMAIN, value: "${CTF_DOMAIN}" }
+            - { name: CTF_SCHEME, value: "${CTF_SCHEME}" }
+            - name: CTF_SCHOOL_SECRET
+              valueFrom:
+                secretKeyRef: { name: ctf-school-secret, key: secret }
+        - op: replace
+          path: /spec/template/spec/containers/0/args
+          value:
+            - --leader-elect=true
+            - --health-probe-bind-address=:8081
+            - --metrics-bind-address=:8443
+            - --metrics-secure=true
+  postBuild:
+    substituteFrom:
+      - { kind: ConfigMap, name: cluster-config }
+# NOTE: the remaining app Kustomizations (data, ctfd, gateway, monitoring,
+# challenges) mirror clusters/kind/sync.yaml + the same postBuild. They are added
+# as their manifests gain ${VAR} placeholders (domain/scheme/image/storageClass) —
+# that parameterisation is the remaining cloud-overlay work.

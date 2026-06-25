@@ -4,7 +4,7 @@
 #
 # Paths are relative to each GitRepository's root:
 #   flux-system → the ctfd repo       (./deploy/*)
-#   controller  → the controller repo (./config/kind)
+#   controller  → the controller repo (./config/local)
 #   challenges  → the challenges repo  (./ — its kustomization aggregates challenges)
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
@@ -66,16 +66,41 @@ spec:
   prune: true
   sourceRef: { kind: GitRepository, name: flux-system }
 ---
-# Controller — from its own repo.
+# Controller — base (config/default) comes from its repo; the LOCAL/dev
+# customization (kind-loaded image, no leader election, insecure metrics, dev env)
+# is applied HERE in deploy, via Flux's native images/patches.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata: { name: controller, namespace: flux-system }
 spec:
   dependsOn: [{ name: infrastructure }]
   interval: 30m
-  path: ./config/kind
+  path: ./config/default
   prune: true
   sourceRef: { kind: GitRepository, name: controller }
+  images:
+    - name: ctf.school/controller
+      newName: ctf-school-controller   # kind-loaded
+      newTag: latest
+  patches:
+    - target: { kind: Deployment, name: controller-controller-manager }
+      patch: |
+        - op: add
+          path: /spec/template/spec/containers/0/imagePullPolicy
+          value: IfNotPresent
+        - op: add
+          path: /spec/template/spec/containers/0/env
+          value:
+            - { name: CTF_DOMAIN, value: ctf.school.local }
+            - { name: CTF_SCHEME, value: https }
+            - { name: CTF_SCHOOL_SECRET, value: ctf-school-secret-key }
+        - op: replace
+          path: /spec/template/spec/containers/0/args
+          value:
+            - --leader-elect=false
+            - --health-probe-bind-address=:8081
+            - --metrics-bind-address=0
+            - --metrics-secure=false
 ---
 # Challenges — from their own repo (LabSpace/LabService per challenge).
 apiVersion: kustomize.toolkit.fluxcd.io/v1

@@ -1,10 +1,9 @@
-# Flux entrypoint for the local kind cluster.
-# `flux bootstrap … --path=gitops/clusters/kind` creates the GitRepository
-# `flux-system` (this ctfd repo); `sources.yaml` adds the controller & challenges
-# repos. These Kustomizations reconcile the platform, ordered with dependsOn.
+# Platform Kustomizations for the kind cluster (reconciled by the root
+# Kustomization in flux-system.yaml). `sources.yaml` adds the controller &
+# challenges repos. Ordered with dependsOn.
 #
 # Paths are relative to each GitRepository's root:
-#   flux-system → the ctfd repo       (./k8s/*, ./gitops/*)
+#   flux-system → the ctfd repo       (./deploy/*)
 #   controller  → the controller repo (./config/kind)
 #   challenges  → the challenges repo  (./ — its kustomization aggregates challenges)
 apiVersion: kustomize.toolkit.fluxcd.io/v1

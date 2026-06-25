@@ -27,14 +27,33 @@ deploy/
 
 ```bash
 # local:
-cd ctfd && make all        # cluster + cilium + images + flux bootstrap + hosts
+cd ctfd && make all        # cluster + cilium + images + flux + hosts
 
-# prod: the SAME, minus the kind/images/hosts bits —
-flux bootstrap github --owner=<you> --repository=ctfd \
-  --branch=main --path=deploy/clusters/cloud
+# prod: the SAME, minus kind/images/hosts —
+flux install
+kubectl apply -f deploy/clusters/cloud/flux-system.yaml
 ```
 
-`make flux` runs `flux bootstrap` against your repo and waits for reconciliation.
+`make flux` does **`flux install` + `kubectl apply` of the read-only source** —
+**not** `flux bootstrap`. Flux only **reads** the repo, never writes to it, and
+holds **no broad PAT**. The repo URL lives in `clusters/<env>/flux-system.yaml`.
+
+### Public vs private repos
+- **Public** → nothing else to do; Flux clones over HTTPS, no credentials.
+- **Private** → give Flux a **read-only deploy key** per repo (least privilege,
+  no write, no account-wide token):
+
+  ```bash
+  # generates a keypair + prints the public key to add as a READ-ONLY deploy key
+  flux create secret git flux-system \
+    --url=ssh://git@github.com/Ivanhahanov/ctf-school-ctfd \
+    --namespace=flux-system
+  ```
+  Add the printed key under the repo's **Settings → Deploy keys** (leave “Allow
+  write access” **unchecked**), switch the GitRepository `url` to the `ssh://…`
+  form, and add `secretRef: { name: flux-system }`. Repeat per repo
+  (controller, challenges) — deploy keys are per-repo. For many private repos a
+  GitHub App or a fine-grained, read-only, repo-scoped PAT is the alternative.
 
 ## ⚠️ Set these before going live (currently local placeholders)
 

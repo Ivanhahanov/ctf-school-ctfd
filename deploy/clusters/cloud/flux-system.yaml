@@ -1,0 +1,25 @@
+# Root Flux source for the cloud cluster — same as kind, path ./deploy/clusters/cloud.
+# Read-only; no bootstrap. Private repo → add a read-only deploy key (see README).
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: flux-system
+  namespace: flux-system
+spec:
+  interval: 5m
+  url: https://github.com/Ivanhahanov/ctf-school-ctfd
+  ref:
+    branch: main
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: flux-system
+  namespace: flux-system
+spec:
+  interval: 10m
+  path: ./deploy/clusters/cloud
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system

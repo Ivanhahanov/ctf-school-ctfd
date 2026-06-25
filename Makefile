@@ -16,13 +16,10 @@ CLUSTER := ctfd
 NS      := ctfd
 DOMAIN  := ctf.school.local
 
-# Flux GitOps source — the repo Flux reconciles from. CHANGE THESE to your repo.
-# Recommended: push `ctfd/` to GitHub (this becomes flux-system) and set the
-# controller/challenges repo URLs in deploy/clusters/kind/sources.yaml.
-GIT_OWNER  ?= your-org          # ← CHANGE ME
-GIT_REPO   ?= ctfd              # ← CHANGE ME
-GIT_BRANCH ?= main
-FLUX_PATH  ?= deploy/clusters/kind
+# Flux GitOps source. The repo URL lives in $(FLUX_PATH)/flux-system.yaml
+# (read-only, no bootstrap). Set it there + the controller/challenges URLs in
+# deploy/clusters/kind/sources.yaml.
+FLUX_PATH ?= deploy/clusters/kind
 
 # Local dev images (build+load into kind). For prod, push these to a registry
 # (e.g. GHCR / your cloud registry) and reference them in the manifests instead.
@@ -96,15 +93,16 @@ images: load
 	else echo "  (skip desktop: $(DESKTOP_DIR) not found)"; fi
 
 # ── Flux (the deployment) ──────────────────────────────────────────────────────
-# Bootstraps Flux against your Git repo and reconciles deploy/clusters/kind.
-# Requires: `flux` CLI and a GITHUB_TOKEN env (repo + workflow scope). This is the
-# SAME command you'd run for prod, just --path=deploy/clusters/cloud.
+# Installs the Flux controllers and points them at this repo READ-ONLY — no
+# `flux bootstrap`, so Flux never writes to your repo and needs no broad PAT.
+# Public repo → no credentials. Private repo → create a read-only deploy key
+# first (see deploy/README.md), then re-run.  Same flow for prod (clusters/cloud).
 flux:
-	$(call step,Bootstrapping Flux → github.com/$(GIT_OWNER)/$(GIT_REPO) ($(FLUX_PATH)))
+	$(call step,Installing Flux controllers)
 	flux check --pre
-	flux bootstrap github \
-	  --owner=$(GIT_OWNER) --repository=$(GIT_REPO) \
-	  --branch=$(GIT_BRANCH) --path=$(FLUX_PATH) --personal
+	flux install
+	$(call step,Pointing Flux at the repo (read-only) → reconciling $(FLUX_PATH))
+	kubectl apply -f $(FLUX_PATH)/flux-system.yaml
 	$(call step,Waiting for Flux to reconcile the platform (MariaDB ~5 min))
 	kubectl -n flux-system wait kustomization/gateway --for=condition=Ready --timeout=900s || \
 	  echo "  gateway not ready yet — check: flux get kustomizations"

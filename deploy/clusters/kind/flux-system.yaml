@@ -1,0 +1,32 @@
+# Root Flux source for the kind cluster — applied once by `make flux` (after
+# `flux install`). NO `flux bootstrap`: Flux only READS this repo, holds no broad
+# PAT, and never writes back.
+#
+# Public repo  → no credentials needed (as below).
+# Private repo → add `secretRef: { name: flux-system }` to the GitRepository and
+#   create a READ-ONLY deploy key:  see deploy/README.md.
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: flux-system
+  namespace: flux-system
+spec:
+  interval: 5m
+  url: https://github.com/Ivanhahanov/ctf-school-ctfd
+  ref:
+    branch: main
+---
+# Reconciles deploy/clusters/kind (which adds the controller/challenges sources
+# and all the platform Kustomizations).
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: flux-system
+  namespace: flux-system
+spec:
+  interval: 10m
+  path: ./deploy/clusters/kind
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system

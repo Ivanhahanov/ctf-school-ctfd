@@ -55,7 +55,8 @@ spec:
       newName: "${IMAGE_REGISTRY}/ctf-school-controller"
       newTag: "${IMAGE_TAG}"
   patches:
-    - target: { kind: Deployment, name: controller-controller-manager }
+    # Target by label (prefix-independent — Flux patches before the name prefix).
+    - target: { kind: Deployment, labelSelector: control-plane=controller-manager }
       patch: |
         - op: replace
           path: /spec/replicas

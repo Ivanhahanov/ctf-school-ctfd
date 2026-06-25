@@ -83,7 +83,9 @@ spec:
       newName: ctf-school-controller   # kind-loaded
       newTag: latest
   patches:
-    - target: { kind: Deployment, name: controller-controller-manager }
+    # Target by label, not name — Flux applies patches before the `controller-`
+    # name prefix, so a name target would miss; the label is prefix-independent.
+    - target: { kind: Deployment, labelSelector: control-plane=controller-manager }
       patch: |
         - op: add
           path: /spec/template/spec/containers/0/imagePullPolicy

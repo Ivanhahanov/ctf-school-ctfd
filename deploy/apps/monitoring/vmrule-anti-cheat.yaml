@@ -21,4 +21,4 @@ spec:
         # Smoking gun: solved, yet < 2 min of real hands-on work in the workspace
         # (they got the flag without working the challenge here → solved elsewhere).
         - record: team_labspace:solved_low_engagement
-          expr: (ctf_solved == 1) * on (team, labspace) group_left (team_labspace:engaged_seconds < bool 120)
+          expr: (ctf_solved == 1) * on (team, labspace) (team_labspace:engaged_seconds < bool 120)

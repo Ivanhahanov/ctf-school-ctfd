@@ -1,6 +1,6 @@
-# Each project is its own repo → its own Flux GitRepository source (read-only).
-# `flux-system` (this ctfd repo) is defined in flux-system.yaml; these two point
-# at the sibling repos. Private repos → add `secretRef` + a read-only deploy key.
+# Sibling-repo Flux sources, shared by every cluster (kind + cloud) — read-only.
+# `flux-system` (this ctfd repo) is defined per-cluster in flux-system.yaml.
+# Private repos → add `secretRef` + a read-only deploy key (see deploy/README.md).
 apiVersion: source.toolkit.fluxcd.io/v1
 kind: GitRepository
 metadata:

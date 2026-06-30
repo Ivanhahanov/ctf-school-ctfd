@@ -10,7 +10,7 @@ spec:
     - name: ctfd
       namespace: ctfd
   hostnames:
-    - grafana.ctf.school.local
+    - grafana.${CTF_DOMAIN}
   rules:
     - backendRefs:
         - name: vm-grafana

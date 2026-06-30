@@ -40,7 +40,7 @@ grafana:
       searchNamespace: ALL
   grafana.ini:
     server:
-      root_url: "https://grafana.ctf.school.local"
+      root_url: "https://grafana.${CTF_DOMAIN}"
     auth.anonymous:
       enabled: true              # read-only view without login (dev convenience)
       org_role: Viewer

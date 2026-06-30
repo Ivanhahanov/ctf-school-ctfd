@@ -24,11 +24,14 @@ FLUX_PATH ?= deploy/clusters/kind
 # Local dev images (build+load into kind). For prod, push these to a registry
 # (e.g. GHCR / your cloud registry) and reference them in the manifests instead.
 # These sibling paths are LOCAL — they assume the repos are checked out alongside.
-IMAGE          ?= ctfd-lab
-TAG            ?= latest
-CONTROLLER_DIR ?= ../ctf-school-controller   # ← local path; use a registry for prod
-GUARD_DIR      ?= ../workspace-guard          # ← local path; use a registry for prod
-DESKTOP_DIR    ?= ../vpc                       # ← local path; use a registry for prod
+IMAGE ?= ctfd-lab
+TAG   ?= latest
+# Sibling repo paths (no inline comments — Make keeps trailing spaces in values).
+# For prod these become registry images, not local builds.
+CONTROLLER_DIR ?= ../ctf-school-controller
+GUARD_DIR      ?= ../workspace-guard
+# Desktop builds the default Dockerfile; variants: Dockerfile.{pentest,programming}.
+DESKTOP_DIR    ?= ../vpc/ctf-desktop
 
 BOLD  := $(shell tput bold 2>/dev/null)
 GREEN := $(shell tput setaf 2 2>/dev/null)
@@ -79,16 +82,16 @@ load: build
 ## Build + load ALL local images (ctfd, controller, guard, desktop) — dev only.
 images: load
 	$(call step,Building + loading controller / guard / desktop (LOCAL dev images))
-	@if [ -f $(CONTROLLER_DIR)/Dockerfile ]; then \
-	  docker build -t ctf-school-controller:latest $(CONTROLLER_DIR) && \
+	@if [ -f "$(CONTROLLER_DIR)/Dockerfile" ]; then \
+	  docker build -t ctf-school-controller:latest "$(CONTROLLER_DIR)" && \
 	  kind load docker-image ctf-school-controller:latest --name $(CLUSTER); \
 	else echo "  (skip controller: $(CONTROLLER_DIR) not found)"; fi
-	@if [ -f $(GUARD_DIR)/Dockerfile ]; then \
-	  docker build -t ctf-school-guard:latest $(GUARD_DIR) && \
+	@if [ -f "$(GUARD_DIR)/Dockerfile" ]; then \
+	  docker build -t ctf-school-guard:latest "$(GUARD_DIR)" && \
 	  kind load docker-image ctf-school-guard:latest --name $(CLUSTER); \
 	else echo "  (skip guard: $(GUARD_DIR) not found)"; fi
-	@if [ -f $(DESKTOP_DIR)/Dockerfile ]; then \
-	  docker build -t vpc/ctf-desktop:latest $(DESKTOP_DIR) && \
+	@if [ -f "$(DESKTOP_DIR)/Dockerfile" ]; then \
+	  docker build -t vpc/ctf-desktop:latest "$(DESKTOP_DIR)" && \
 	  kind load docker-image vpc/ctf-desktop:latest --name $(CLUSTER); \
 	else echo "  (skip desktop: $(DESKTOP_DIR) not found)"; fi
 

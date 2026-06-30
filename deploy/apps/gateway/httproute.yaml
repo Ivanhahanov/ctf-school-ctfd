@@ -10,7 +10,7 @@ spec:
     - name: ctfd
       sectionName: https
   hostnames:
-    - ctf.school.local
+    - ${CTF_DOMAIN}
   rules:
     # CTFd's notification stream is Server-Sent Events: a single long-lived
     # response. The default Envoy route timeout (15s) cuts it mid-stream, which
@@ -46,7 +46,7 @@ spec:
     - name: ctfd
       sectionName: http
   hostnames:
-    - ctf.school.local
+    - ${CTF_DOMAIN}
   rules:
     - filters:
         - type: RequestRedirect

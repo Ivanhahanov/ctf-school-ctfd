@@ -1,0 +1,16 @@
+# Values for the CLOUD (prod) cluster. SAME mechanism as kind (clusters/base) —
+# only these values differ. Flux fills the ${VAR} placeholders from here.
+#
+# The HMAC secret is NOT here (secrets don't belong in a ConfigMap): create a
+# `ctf-school-secret` Secret (key `secret`) in BOTH the controller-system and
+# ctfd namespaces via SOPS / sealed-secrets / external-secrets.
+apiVersion: v1
+kind: ConfigMap
+metadata: { name: cluster-config, namespace: flux-system }
+data:
+  CTF_DOMAIN: "ctf.example.com"                         # ← your real domain
+  CTF_SCHEME: "https"
+  CTF_FLAG_FORMAT: "CTF{%s}"
+  CONTROLLER_IMAGE: "ghcr.io/your-org/ctf-school-controller"  # ← your registry
+  CTFD_IMAGE: "ghcr.io/your-org/ctfd-lab"
+  IMAGE_TAG: "v0.1.0"

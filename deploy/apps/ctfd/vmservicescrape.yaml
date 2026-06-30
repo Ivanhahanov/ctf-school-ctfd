@@ -1,0 +1,20 @@
+# Scrape CTFd's anti-cheat exporter (/lab-metrics). Bearer-authenticated because
+# the metrics carry client IPs. Lands per-(team, challenge) signals in VictoriaMetrics
+# for the Anti-AI dashboard.
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMServiceScrape
+metadata:
+  name: ctfd-lab-metrics
+  namespace: ctfd
+spec:
+  selector:
+    matchLabels:
+      app: ctfd
+  endpoints:
+    - port: http            # ctfd Service port name (8000)
+      path: /lab-metrics
+      interval: 30s
+      scrapeTimeout: 20s
+      bearerTokenSecret:
+        name: ctf-school-secret
+        key: metrics_token

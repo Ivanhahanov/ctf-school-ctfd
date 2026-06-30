@@ -3,6 +3,8 @@ kind: Service
 metadata:
   name: ctfd
   namespace: ctfd
+  labels:
+    app: ctfd          # matched by the VMServiceScrape (anti-cheat metrics)
 spec:
   selector:
     app: ctfd

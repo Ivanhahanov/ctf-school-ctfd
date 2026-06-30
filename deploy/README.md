@@ -17,11 +17,22 @@ deploy/
     gateway/             GatewayClass / Gateway / HTTPRoutes / TLS / policies
     monitoring/          values.yaml (Helm) + scrape/route/dashboards (kustomize)
   clusters/
-    kind/   sources.yaml GitRepository for the controller & challenges repos
+    base/   sources.yaml GitRepository for the controller & challenges repos
             sync.yaml    Flux Kustomizations: infra → data/cache → ctfd → gateway
-                         → monitoring → controller → challenges (dependsOn-ordered)
-    cloud/  sync.yaml    same bases + per-env ${VAR} substitution
+                         → monitoring → controller → challenges (dependsOn-ordered),
+                         parameterised with ${VAR} + postBuild.substituteFrom.
+                         SHARED by every cluster — the single deployment mechanism.
+    kind/   cluster-config.yaml  local values (domain, local images, latest)
+            secrets.yaml         dev-only ctf-school-secret (prod: external)
+            kustomization.yaml   = ../base + the two files above
+    cloud/  cluster-config.yaml  prod values (domain, registry images, tag)
+            kustomization.yaml   = ../base + cluster-config (secret supplied externally)
 ```
+
+Both clusters run the **identical** `clusters/base`. The ONLY thing that differs
+is each cluster's `cluster-config` ConfigMap — Flux substitutes its values into
+the `${VAR}` placeholders at reconcile time. Debugging on kind therefore exercises
+the exact prod mechanism (ConfigMap + postBuild), not a different code path.
 
 ## Install (local = prod)
 
@@ -57,9 +68,12 @@ holds **no broad PAT**. The repo URL lives in `clusters/<env>/flux-system.yaml`.
 
 ## ⚠️ Set these before going live (currently local placeholders)
 
-- **`clusters/kind/sources.yaml`** — the `controller` and `challenges`
-  `GitRepository` URLs are `your-org/...` placeholders. **Change them** to your
-  real repos.
+- **`clusters/base/sources.yaml`** — the `controller` and `challenges`
+  `GitRepository` URLs. Confirm they point at your real repos (shared by both
+  clusters).
+- **`clusters/cloud/cluster-config.yaml`** — `CTF_DOMAIN`, `CONTROLLER_IMAGE`,
+  `CTFD_IMAGE`, `IMAGE_TAG` are `your-org/...`/`ctf.example.com` placeholders.
+  This ConfigMap is the one and only place prod values are set.
   - *Recommended:* host the three repos (ctfd, ctf-school-controller,
     ctf-school-challenges) on GitHub; bootstrap Flux against `ctfd`.
 - **Images** — `controller`, `workspace-guard`, `ctfd-lab`, `ctf-desktop` are

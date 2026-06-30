@@ -42,12 +42,15 @@ You do **not** write a static flag. Add a dynamic env var to the LabService:
 env:
   - name: FLAG
     dynamicValue:
-      type: hmac
-      template: "CTF{%s}"     # must equal challenge.yml.flag_template
+      type: hmac          # that's all — no format, no template
 ```
 
+The flag **format** is not your concern: it's platform-wide, set once by the
+operator via the `CTF_FLAG_FORMAT` env (shared by the controller and CTFd, just
+like `CTF_SCHOOL_SECRET`). You only declare the variable.
+
 At runtime the controller injects
-`FLAG = template % HMAC-SHA256(CTF_SCHOOL_SECRET, "<service-name>" + "<team>")[:12]`,
+`FLAG = CTF_FLAG_FORMAT % base64url(HMAC-SHA256(CTF_SCHOOL_SECRET, "<service-name>" + "<team>"))[:24]`,
 and CTFd validates a submission by deriving the exact same value. Consequences:
 
 - Every team gets a **unique** flag — sharing it is useless.
@@ -98,7 +101,7 @@ spec:
   exposure: { type: HTTP, targetPort: http }   # how the workspace/gateway reaches it
   env:
     - { name: KEY, value: "static" }
-    - { name: FLAG, dynamicValue: { type: hmac, template: "CTF{%s}" } }
+    - { name: FLAG, dynamicValue: { type: hmac } }   # format is platform-wide
   resources:                              # requests/limits (please set these)
     requests: { cpu: 25m, memory: 32Mi }
     limits:   { cpu: 100m, memory: 64Mi }
@@ -135,7 +138,6 @@ idempotent, so re-run it after any edit. To only refresh the CTFd side:
       `serviceSelector`.
 - [ ] `challenge.yml.lab_space_ref` == `LabSpace.metadata.name`.
 - [ ] `challenge.yml.flag_service` == the `LabService.metadata.name` carrying `$FLAG`.
-- [ ] `challenge.yml.flag_template` == the LabService env `template`.
 - [ ] `resources` set on every LabService.
 - [ ] `network.internalOnly: true` unless a public endpoint is required.
 - [ ] Loaded with `tools/load_challenge.py` and smoke-tested (start lab → open

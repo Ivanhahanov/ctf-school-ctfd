@@ -20,8 +20,8 @@ spec:
   privateKey:
     rotationPolicy: Always
   dnsNames:
-    - ctf.school.local
-    - "*.ctf.school.local"   # per-session workspaces + exposed services
+    - ${CTF_DOMAIN}
+    - "*.${CTF_DOMAIN}"   # per-session workspaces + exposed services
   issuerRef:
     name: selfsigned
     kind: ClusterIssuer

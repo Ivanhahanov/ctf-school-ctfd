@@ -1,0 +1,24 @@
+# Recording rules for the anti-cheat dashboard. Kept deliberately simple (no
+# cross-metric joins) so they're robust; the dashboard combines them with the
+# ctf_* signals. engaged_seconds is restart-aware: the guard tags every session
+# with its labspace, so increase() summed per (team, labspace) covers all restarts.
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMRule
+metadata:
+  name: anti-cheat
+  namespace: monitoring
+spec:
+  groups:
+    - name: anti-cheat.rules
+      interval: 30s
+      rules:
+        # Hands-on engagement per (team, challenge), summed across all restarts.
+        - record: team_labspace:engaged_seconds
+          expr: sum by (team, labspace) (increase(workspace_guard_active_seconds_total[1d]))
+        # Worst automation score the guard saw for that team+challenge.
+        - record: team_labspace:anomaly_score
+          expr: max by (team, labspace) (workspace_guard_anomaly_score)
+        # Smoking gun: solved, yet < 2 min of real hands-on work in the workspace
+        # (they got the flag without working the challenge here → solved elsewhere).
+        - record: team_labspace:solved_low_engagement
+          expr: (ctf_solved == 1) * on (team, labspace) group_left (team_labspace:engaged_seconds < bool 120)

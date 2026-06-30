@@ -1,11 +1,20 @@
-# Platform Kustomizations for the kind cluster (reconciled by the root
-# Kustomization in flux-system.yaml). `sources.yaml` adds the controller &
-# challenges repos. Ordered with dependsOn.
+# Platform Kustomizations — SHARED by every cluster (kind + cloud).
+#
+# This is the single source of truth for HOW the platform is deployed. A cluster
+# overlay (clusters/kind, clusters/cloud) adds only:
+#   * flux-system.yaml  — the repo source + root Kustomization (its own path)
+#   * cluster-config.yaml — a `cluster-config` ConfigMap with that cluster's VALUES
+#   * (kind only) a dev `ctf-school-secret` Secret; prod supplies it externally
+#
+# So kind and cloud run the IDENTICAL Flux mechanism: ${VAR} placeholders in the
+# manifests, filled by Flux `postBuild.substituteFrom` the `cluster-config`
+# ConfigMap. The only differences between clusters are the values in that map
+# (domain, scheme, image registry/tag) — never the deployment approach.
 #
 # Paths are relative to each GitRepository's root:
 #   flux-system → the ctfd repo       (./deploy/*)
-#   controller  → the controller repo (./config/local)
-#   challenges  → the challenges repo  (./ — its kustomization aggregates challenges)
+#   controller  → the controller repo (./config/default)
+#   challenges  → the challenges repo  (./)
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata: { name: infrastructure, namespace: flux-system }
@@ -15,6 +24,9 @@ spec:
   prune: true
   wait: true
   sourceRef: { kind: GitRepository, name: flux-system }
+  postBuild:
+    substituteFrom:
+      - { kind: ConfigMap, name: cluster-config }
 ---
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
@@ -45,6 +57,9 @@ spec:
   path: ./deploy/apps/ctfd
   prune: true
   sourceRef: { kind: GitRepository, name: flux-system }
+  postBuild:
+    substituteFrom:
+      - { kind: ConfigMap, name: cluster-config }
 ---
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
@@ -55,6 +70,9 @@ spec:
   path: ./deploy/apps/gateway
   prune: true
   sourceRef: { kind: GitRepository, name: flux-system }
+  postBuild:
+    substituteFrom:
+      - { kind: ConfigMap, name: cluster-config }
 ---
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
@@ -65,10 +83,14 @@ spec:
   path: ./deploy/apps/monitoring
   prune: true
   sourceRef: { kind: GitRepository, name: flux-system }
+  postBuild:
+    substituteFrom:
+      - { kind: ConfigMap, name: cluster-config }
 ---
-# Controller — base (config/default) comes from its repo; the LOCAL/dev
-# customization (kind-loaded image, no leader election, insecure metrics, dev env)
-# is applied HERE in deploy, via Flux's native images/patches.
+# Controller — base (config/default) from its own repo; the deploy-time
+# customization (image, env, args) is applied HERE so it is identical for every
+# cluster. ${VAR} in the image/env are substituted by THIS Kustomization's
+# postBuild (it runs on the rendered Deployment, after the patch is applied).
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata: { name: controller, namespace: flux-system }
@@ -80,8 +102,8 @@ spec:
   sourceRef: { kind: GitRepository, name: controller }
   images:
     - name: ctf.school/controller
-      newName: ctf-school-controller   # kind-loaded
-      newTag: latest
+      newName: "${CONTROLLER_IMAGE}"
+      newTag: "${IMAGE_TAG}"
   patches:
     # Target by label, not name — Flux applies patches before the `controller-`
     # name prefix, so a name target would miss; the label is prefix-independent.
@@ -93,18 +115,26 @@ spec:
         - op: add
           path: /spec/template/spec/containers/0/env
           value:
-            - { name: CTF_DOMAIN, value: ctf.school.local }
-            - { name: CTF_SCHEME, value: https }
-            - { name: CTF_SCHOOL_SECRET, value: ctf-school-secret-key }
+            - { name: CTF_DOMAIN, value: "${CTF_DOMAIN}" }
+            - { name: CTF_SCHEME, value: "${CTF_SCHEME}" }
+            - { name: CTF_FLAG_FORMAT, value: "${CTF_FLAG_FORMAT}" }
+            - name: CTF_SCHOOL_SECRET
+              valueFrom:
+                secretKeyRef: { name: ctf-school-secret, key: secret }
         - op: replace
           path: /spec/template/spec/containers/0/args
           value:
-            - --leader-elect=false
+            - --leader-elect
             - --health-probe-bind-address=:8081
-            - --metrics-bind-address=0
-            - --metrics-secure=false
+            - --metrics-bind-address=:8443
+            - --metrics-secure=true
+  postBuild:
+    substituteFrom:
+      - { kind: ConfigMap, name: cluster-config }
 ---
-# Challenges — from their own repo (LabSpace/LabService per challenge).
+# Challenges — from their own repo (LabSpace/LabService per challenge). No
+# platform vars here, so NO postBuild (challenge manifests may legitimately use
+# their own ${...}/$() shell syntax that must not be touched).
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata: { name: challenges, namespace: flux-system }

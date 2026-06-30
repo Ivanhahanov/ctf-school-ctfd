@@ -24,7 +24,7 @@ spec:
         runAsUser: 1001
       containers:
         - name: ctfd
-          image: ctfd-lab:latest
+          image: ${CTFD_IMAGE}:${IMAGE_TAG}   # filled by Flux from cluster-config
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
@@ -64,14 +64,29 @@ spec:
               value: "/var/log/CTFd"
             - name: UPLOAD_PROVIDER
               value: "filesystem"
+            # HMAC key for flag derivation — from the SAME `ctf-school-secret`
+            # the controller uses (so flags match). Dev value in kind comes from
+            # clusters/kind/secrets.yaml; prod supplies it externally.
             - name: CTF_SCHOOL_SECRET
-              value: "ctf-school-secret-key"
-            # Base domain + scheme for workspace access cookies/links.
-            # Flip CTF_SCHEME to https once the TLS cert is in place.
+              valueFrom:
+                secretKeyRef:
+                  name: ctf-school-secret
+                  key: secret
+            # Bearer token that guards the /lab-metrics anti-cheat exporter.
+            - name: CTF_METRICS_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: ctf-school-secret
+                  key: metrics_token
+            # Platform flag format / domain / scheme — set ONCE per cluster in the
+            # cluster-config ConfigMap and substituted by Flux. Authors never set
+            # the flag format; the controller reads the same CTF_FLAG_FORMAT.
+            - name: CTF_FLAG_FORMAT
+              value: "${CTF_FLAG_FORMAT}"
             - name: CTF_DOMAIN
-              value: "ctf.school.local"
+              value: "${CTF_DOMAIN}"
             - name: CTF_SCHEME
-              value: "https"
+              value: "${CTF_SCHEME}"
             # Max concurrently running labs per team (user in non-team mode)
             - name: MAX_CONCURRENT_LABS
               value: "2"

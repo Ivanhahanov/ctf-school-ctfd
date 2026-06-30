@@ -1,0 +1,14 @@
+# Values for the KIND (local dev) cluster. The ONLY thing that differs from prod
+# is this map — the deployment mechanism (clusters/base) is identical. Flux fills
+# the ${VAR} placeholders in the manifests from here via postBuild.substituteFrom.
+apiVersion: v1
+kind: ConfigMap
+metadata: { name: cluster-config, namespace: flux-system }
+data:
+  CTF_DOMAIN: "ctf.school.local"
+  CTF_SCHEME: "https"
+  CTF_FLAG_FORMAT: "CTF{%s}"
+  # Local kind-loaded images (no registry); `make images` builds these tags.
+  CONTROLLER_IMAGE: "ctf-school-controller"
+  CTFD_IMAGE: "ctfd-lab"
+  IMAGE_TAG: "latest"

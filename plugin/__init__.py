@@ -4,11 +4,11 @@ CTFd Lab Manager Plugin
 Challenge type «Lab» = Dynamic scoring + Kubernetes LabSession.
 
 Flag derivation mirrors the controller's buildEnvVars (case "hmac"):
-    HMAC-SHA256(CTF_SCHOOL_SECRET, flagService + userId)[:12]
-wrapped in flag_template (default "CTF{%s}").
+    CTF_FLAG_FORMAT % base64url(HMAC-SHA256(CTF_SCHOOL_SECRET, flagService+userId))[:24]
 
-The secret must match the value used in the controller
-(env CTF_SCHOOL_SECRET, fallback "ctf-school-secret-key").
+Both CTF_SCHOOL_SECRET (the HMAC key) and CTF_FLAG_FORMAT (the wrapper, e.g.
+"CTF{%s}") are platform-wide env vars shared with the controller — set once,
+never per-challenge — so the two sides can never drift.
 """
 
 import base64
@@ -24,9 +24,9 @@ from urllib.error import HTTPError
 from urllib.parse import quote
 from urllib.request import Request, urlopen
 
-from flask import Blueprint, jsonify, redirect, render_template_string
+from flask import Blueprint, jsonify, redirect, render_template_string, request, Response
 
-from CTFd.models import Challenges, db
+from CTFd.models import Challenges, Solves, Submissions, Teams, Users, db
 from CTFd.plugins import (
     register_plugin_assets_directory,
     register_user_page_menu_bar,
@@ -67,8 +67,63 @@ class LabChallenge(DynamicChallenge):
     lab_space_ref = db.Column(db.String(255), nullable=False, default="")
     # LabService CRD name whose hmac env-var becomes the flag
     flag_service  = db.Column(db.String(255), nullable=False, default="")
-    # Python %-format string wrapping the HMAC digest, e.g. "CTF{%s}"
+    # DEPRECATED, unused: the flag format is now platform-wide (CTF_FLAG_FORMAT).
+    # Column kept so existing databases don't need a migration.
     flag_template = db.Column(db.String(255), nullable=False, default="CTF{%s}")
+
+
+class LabAudit(db.Model):
+    """Per (account-salt, challenge) anti-cheat ledger that CTFd's own tables don't
+    keep: when the lab was FIRST started (restart-aware solve timing), how many
+    times it was restarted, and how flags were submitted (transport + client).
+    Read by the /lab-metrics exporter, joined in Grafana with guard engagement."""
+    __tablename__ = "lab_audit"
+    salt         = db.Column(db.String(64), primary_key=True)   # 't<team>' / 'u<user>'
+    challenge_id = db.Column(db.Integer, primary_key=True)
+    first_started = db.Column(db.DateTime)                       # FIRST ever start
+    restarts      = db.Column(db.Integer, nullable=False, default=0)
+    api_submits   = db.Column(db.Integer, nullable=False, default=0)
+    ui_submits    = db.Column(db.Integer, nullable=False, default=0)
+    last_ua       = db.Column(db.String(512), nullable=False, default="")
+    last_ip       = db.Column(db.String(64), nullable=False, default="")
+
+
+def _audit_get(salt: str, challenge_id: int) -> "LabAudit":
+    row = LabAudit.query.filter_by(salt=salt, challenge_id=challenge_id).first()
+    if row is None:
+        row = LabAudit(salt=salt, challenge_id=challenge_id)
+        db.session.add(row)
+    return row
+
+
+def _audit_record_start(salt: str, challenge_id: int) -> None:
+    row = _audit_get(salt, challenge_id)
+    if row.first_started is None:
+        row.first_started = datetime.now(timezone.utc)
+    else:
+        row.restarts = (row.restarts or 0) + 1
+    db.session.commit()
+
+
+def _client_ip() -> str:
+    # CTFd sits behind the Envoy gateway; the real client IP arrives in
+    # X-Forwarded-For (left-most entry). Falls back to the socket peer.
+    xff = request.headers.get("X-Forwarded-For", "")
+    if xff:
+        return xff.split(",")[0].strip()
+    return request.remote_addr or ""
+
+
+def _audit_record_submit(salt: str, challenge_id: int) -> None:
+    row = _audit_get(salt, challenge_id)
+    via_api = "Authorization" in request.headers      # token auth => scripted
+    if via_api:
+        row.api_submits = (row.api_submits or 0) + 1
+    else:
+        row.ui_submits = (row.ui_submits or 0) + 1
+    row.last_ua = (request.headers.get("User-Agent", "") or "")[:512]
+    row.last_ip = _client_ip()
+    db.session.commit()
 
 
 # ── Salt helper ───────────────────────────────────────────────────────────────
@@ -124,15 +179,26 @@ def _make_workspace_token(team: str) -> str:
     return header + "." + payload + "." + sig
 
 
-def _derive_flag(flag_service: str, salt: str, template: str) -> str:
+FLAG_TOKEN_LEN = 24  # must match the controller's flagTokenLen
+
+
+def _flag_format() -> str:
+    """Platform-wide flag wrapper (a %s format). Set once via env — the SAME value
+    the controller uses (CTF_FLAG_FORMAT) — so authors never specify a per-challenge
+    format and the two sides can never drift."""
+    return os.environ.get("CTF_FLAG_FORMAT", "CTF{%s}")
+
+
+def _derive_flag(flag_service: str, salt: str) -> str:
     """
-    Mirrors controller buildEnvVars case "hmac":
-        val = fmt.Sprintf(template, hash(labSvc.Name + session.Spec.UserId))
-    where hash = HMAC-SHA256(CTF_SCHOOL_SECRET, input)[:12] hex.
+    Mirrors the controller's hash() + flagFormat():
+        CTF_FLAG_FORMAT % base64url(HMAC-SHA256(CTF_SCHOOL_SECRET, flag_service+salt))[:FLAG_TOKEN_LEN]
+    base64url = mixed-case alphanumeric (+ -_), 24 chars ≈ 2^144 entropy.
     """
     secret = os.environ.get("CTF_SCHOOL_SECRET", "ctf-school-secret-key").encode()
-    digest = _hmac.new(secret, (flag_service + salt).encode(), hashlib.sha256)
-    return template % digest.hexdigest()[:12]
+    digest = _hmac.new(secret, (flag_service + salt).encode(), hashlib.sha256).digest()
+    token = base64.urlsafe_b64encode(digest).rstrip(b"=").decode()[:FLAG_TOKEN_LEN]
+    return _flag_format() % token
 
 
 # ── Challenge type ─────────────────────────────────────────────────────────────
@@ -171,7 +237,7 @@ class LabChallengeType(DynamicValueChallenge):
             state         = data.get("state", "hidden"),
             lab_space_ref = data.get("lab_space_ref", "").strip(),
             flag_service  = data.get("flag_service", "").strip(),
-            flag_template = data.get("flag_template", "CTF{%s}").strip(),
+            # No flag_template: the format is platform-wide (CTF_FLAG_FORMAT).
         )
         db.session.add(challenge)
         db.session.commit()
@@ -185,7 +251,6 @@ class LabChallengeType(DynamicValueChallenge):
         if c:
             data["lab_space_ref"] = c.lab_space_ref
             data["flag_service"]  = c.flag_service
-            data["flag_template"] = c.flag_template
         data["type_data"].update({
             "id":        cls.id,
             "name":      cls.name,
@@ -200,7 +265,7 @@ class LabChallengeType(DynamicValueChallenge):
         challenge = super().update(challenge, request)
         c         = LabChallenge.query.filter_by(id=challenge.id).first()
         if c:
-            for field in ("lab_space_ref", "flag_service", "flag_template"):
+            for field in ("lab_space_ref", "flag_service"):
                 if field in data:
                     setattr(c, field, data[field].strip())
             db.session.commit()
@@ -220,7 +285,13 @@ class LabChallengeType(DynamicValueChallenge):
         data       = request.form or request.get_json()
         submission = (data.get("submission") or "").strip()
         salt       = _current_salt()
-        expected   = _derive_flag(c.flag_service, salt, c.flag_template)
+        expected   = _derive_flag(c.flag_service, salt)
+
+        try:
+            _audit_record_submit(salt, challenge.id)
+        except Exception:
+            logger.exception("audit: record submit failed")
+            db.session.rollback()
 
         if submission == expected:
             return True, "Correct"
@@ -560,6 +631,11 @@ def lab_start(challenge_id):
 
     body, st = k8s_create(salt, challenge_id, _lab_space_ref(challenge_id))
     if st in (200, 201):
+        try:
+            _audit_record_start(salt, challenge_id)
+        except Exception:
+            logger.exception("audit: record start failed")
+            db.session.rollback()
         return jsonify({"success": True, "message": "Lab started"})
     return jsonify({"success": False, "message": body.get("message", "Error")}), 500
 
@@ -609,7 +685,139 @@ def lab_flag_hint(challenge_id):
     if not c or not c.flag_service:
         return jsonify({"success": False, "message": "Dynamic flag not configured"}), 404
 
-    return jsonify({"success": True, "flag": _derive_flag(c.flag_service, salt, c.flag_template)})
+    return jsonify({"success": True, "flag": _derive_flag(c.flag_service, salt)})
+
+
+# ── Anti-cheat metrics exporter ────────────────────────────────────────────────
+
+def _team_prefix() -> str:
+    return "t" if get_config("user_mode") == "teams" else "u"
+
+
+def _levenshtein(a: str, b: str, cap: int = 64) -> int:
+    a, b = a[:cap], b[:cap]
+    if a == b:
+        return 0
+    if not a or not b:
+        return len(a) + len(b)
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        cur = [i]
+        for j, cb in enumerate(b, 1):
+            cur.append(min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (ca != cb)))
+        prev = cur
+    return prev[-1]
+
+
+def _utime(dt) -> float:
+    if dt is None:
+        return 0.0
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.timestamp()
+
+
+def _esc(v) -> str:
+    return str(v).replace("\\", "\\\\").replace('"', '\\"').replace("\n", " ")
+
+
+@lab_api.route("/lab-metrics")
+def lab_metrics():
+    """Prometheus exporter of per-(team, challenge) anti-cheat signals, derived
+    from CTFd submissions + the LabAudit ledger. Holds client IPs/UAs, so it is
+    bearer-protected; the VMServiceScrape passes the same CTF_METRICS_TOKEN."""
+    tok = os.environ.get("CTF_METRICS_TOKEN", "")
+    if not tok or request.headers.get("Authorization", "") != "Bearer " + tok:
+        return Response("forbidden\n", status=403, mimetype="text/plain; version=0.0.4")
+
+    prefix = _team_prefix()
+    labs   = LabChallenge.query.all()
+    audits = {(a.salt, a.challenge_id): a for a in LabAudit.query.all()}
+    names  = ({t.id: t.name for t in Teams.query.all()} if prefix == "t"
+              else {u.id: u.name for u in Users.query.all()})
+
+    S = {k: [] for k in (
+        "solved", "solve_unixtime", "solve_seconds", "first_start_unixtime",
+        "lab_restarts", "wrong_attempts", "min_wrong_editdistance",
+        "foreign_flag_submits", "submit_via_api", "submit_via_ui",
+        "distinct_submit_ips", "client_info")}
+
+    for c in labs:
+        labspace = c.lab_space_ref or ("challenge-%d" % c.id)
+        subs = Submissions.query.filter_by(challenge_id=c.id).all()
+        by_acct = {}
+        for s in subs:
+            by_acct.setdefault(s.account_id, []).append(s)
+        accts = set(by_acct) | {int(k[1:]) for (k, cid) in audits
+                                if cid == c.id and k[1:].isdigit()}
+        # flag -> account, to spot a team submitting ANOTHER team's flag
+        flag_of, flagmap = {}, {}
+        if c.flag_service:
+            for aid in accts:
+                f = _derive_flag(c.flag_service, prefix + str(aid))
+                flag_of[aid], flagmap[f] = f, aid
+
+        for aid in accts:
+            salt   = prefix + str(aid)
+            labels = {"team": salt, "owner": names.get(aid, salt), "labspace": labspace}
+            asubs  = by_acct.get(aid, [])
+            correct = [s for s in asubs if s.type == "correct"]
+            wrong   = [s for s in asubs if s.type != "correct"]
+            au      = audits.get((salt, c.id))
+
+            if correct:
+                t0 = min(_utime(s.date) for s in correct)
+                S["solved"].append((labels, 1))
+                S["solve_unixtime"].append((labels, "%.0f" % t0))
+                if au and au.first_started:
+                    S["solve_seconds"].append((labels, "%.0f" % max(0.0, t0 - _utime(au.first_started))))
+            S["wrong_attempts"].append((labels, len(wrong)))
+            if wrong and c.flag_service:
+                S["min_wrong_editdistance"].append(
+                    (labels, min(_levenshtein(s.provided or "", flag_of.get(aid, "")) for s in wrong)))
+            foreign = sum(1 for s in asubs if s.provided in flagmap and flagmap[s.provided] != aid)
+            if foreign:
+                S["foreign_flag_submits"].append((labels, foreign))
+            ips = {s.ip for s in asubs if s.ip}
+            if ips:
+                S["distinct_submit_ips"].append((labels, len(ips)))
+            if au:
+                if au.first_started:
+                    S["first_start_unixtime"].append((labels, "%.0f" % _utime(au.first_started)))
+                S["lab_restarts"].append((labels, au.restarts or 0))
+                if au.api_submits:
+                    S["submit_via_api"].append((labels, au.api_submits))
+                if au.ui_submits:
+                    S["submit_via_ui"].append((labels, au.ui_submits))
+                info = dict(labels, ip=(au.last_ip or "?"), ua=(au.last_ua or "?")[:120])
+                S["client_info"].append((info, 1))
+
+    HELP = {
+        "solved": ("gauge", "1 if the account solved this lab challenge."),
+        "solve_unixtime": ("gauge", "Unix time of the correct solve."),
+        "solve_seconds": ("gauge", "Seconds from FIRST lab start to solve (restart-aware)."),
+        "first_start_unixtime": ("gauge", "Unix time the lab was first started."),
+        "lab_restarts": ("gauge", "Lab restarts for this account+challenge."),
+        "wrong_attempts": ("gauge", "Incorrect submissions (0 + solved fast = no trial/error)."),
+        "min_wrong_editdistance": ("gauge", "Smallest edit distance of a wrong guess to the real flag."),
+        "foreign_flag_submits": ("gauge", "Submissions equal to ANOTHER account's flag (sharing)."),
+        "submit_via_api": ("gauge", "Flag submissions via API token (scripted)."),
+        "submit_via_ui": ("gauge", "Flag submissions via the web UI."),
+        "distinct_submit_ips": ("gauge", "Distinct client IPs that submitted."),
+        "client_info": ("gauge", "Evidence: last client IP + UA per account/challenge."),
+    }
+    lines = []
+    for key, samples in S.items():
+        if not samples:
+            continue
+        typ, help_ = HELP[key]
+        name = "ctf_" + key
+        lines.append("# HELP %s %s" % (name, help_))
+        lines.append("# TYPE %s %s" % (name, typ))
+        for labels, val in samples:
+            lbl = ",".join('%s="%s"' % (k, _esc(v)) for k, v in labels.items())
+            lines.append("%s{%s} %s" % (name, lbl, val))
+    return Response("\n".join(lines) + "\n", mimetype="text/plain; version=0.0.4")
 
 
 # ── Plugin entry point ────────────────────────────────────────────────────────

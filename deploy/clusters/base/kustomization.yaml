@@ -1,0 +1,8 @@
+# Shared platform layer referenced by every cluster overlay. Contains only the
+# cluster-agnostic Flux Kustomizations + sibling sources; each overlay supplies
+# its own flux-system root, cluster-config ConfigMap, and (kind) dev Secret.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - sources.yaml
+  - sync.yaml

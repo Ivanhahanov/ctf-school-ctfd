@@ -26,7 +26,7 @@ data:
          "description": "Correct flag with under 2 minutes of real interaction in the guarded workspace — strongest signal of solving outside.",
          "fieldConfig": {"defaults": {"thresholds": {"steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}}},
          "datasource": {"type": "prometheus", "uid": "${datasource}"},
-         "targets": [{"expr": "count(team_labspace:solved_low_engagement == 1) or vector(0)", "datasource": {"type": "prometheus", "uid": "${datasource}"}}]},
+         "targets": [{"expr": "count((ctf_solved == 1) and on (team, labspace) (sum by (team, labspace) (increase(workspace_guard_active_seconds_total[$__range])) < 120)) or vector(0)", "datasource": {"type": "prometheus", "uid": "${datasource}"}}]},
         {"id": 3, "type": "stat", "title": "Solved with 0 wrong attempts", "gridPos": {"h": 4, "w": 5, "x": 5, "y": 1},
          "description": "No trial-and-error before a correct flag — the answer arrived fully formed.",
          "fieldConfig": {"defaults": {"thresholds": {"steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 1}]}}},
@@ -57,7 +57,7 @@ data:
          ]},
          "targets": [
            {"refId": "A", "expr": "ctf_solved", "format": "table", "instant": true, "datasource": {"type": "prometheus", "uid": "${datasource}"}},
-           {"refId": "B", "expr": "team_labspace:engaged_seconds", "format": "table", "instant": true, "datasource": {"type": "prometheus", "uid": "${datasource}"}},
+           {"refId": "B", "expr": "sum by (team, labspace) (increase(workspace_guard_active_seconds_total[$__range]))", "format": "table", "instant": true, "datasource": {"type": "prometheus", "uid": "${datasource}"}},
            {"refId": "C", "expr": "ctf_solve_seconds", "format": "table", "instant": true, "datasource": {"type": "prometheus", "uid": "${datasource}"}},
            {"refId": "D", "expr": "ctf_wrong_attempts", "format": "table", "instant": true, "datasource": {"type": "prometheus", "uid": "${datasource}"}},
            {"refId": "E", "expr": "ctf_min_wrong_editdistance", "format": "table", "instant": true, "datasource": {"type": "prometheus", "uid": "${datasource}"}},
@@ -65,7 +65,7 @@ data:
            {"refId": "G", "expr": "ctf_submit_via_api", "format": "table", "instant": true, "datasource": {"type": "prometheus", "uid": "${datasource}"}},
            {"refId": "H", "expr": "ctf_distinct_submit_ips", "format": "table", "instant": true, "datasource": {"type": "prometheus", "uid": "${datasource}"}},
            {"refId": "I", "expr": "ctf_lab_restarts", "format": "table", "instant": true, "datasource": {"type": "prometheus", "uid": "${datasource}"}},
-           {"refId": "J", "expr": "team_labspace:anomaly_score", "format": "table", "instant": true, "datasource": {"type": "prometheus", "uid": "${datasource}"}}
+           {"refId": "J", "expr": "max by (team, labspace) (workspace_guard_anomaly_score)", "format": "table", "instant": true, "datasource": {"type": "prometheus", "uid": "${datasource}"}}
          ],
          "transformations": [
            {"id": "merge", "options": {}},
@@ -96,7 +96,7 @@ data:
            {"matcher": {"id": "byName", "options": "engaged_seconds"}, "properties": [{"id": "custom.cellOptions", "value": {"type": "color-background"}}, {"id": "thresholds", "value": {"steps": [{"color": "red", "value": null}, {"color": "yellow", "value": 120}, {"color": "green", "value": 600}]}}]}
          ]},
          "targets": [
-           {"refId": "A", "expr": "team_labspace:engaged_seconds and on (team, labspace) (ctf_solved == 1)", "format": "table", "instant": true, "datasource": {"type": "prometheus", "uid": "${datasource}"}},
+           {"refId": "A", "expr": "sum by (team, labspace) (increase(workspace_guard_active_seconds_total[$__range])) and on (team, labspace) (ctf_solved == 1)", "format": "table", "instant": true, "datasource": {"type": "prometheus", "uid": "${datasource}"}},
            {"refId": "B", "expr": "ctf_solve_seconds", "format": "table", "instant": true, "datasource": {"type": "prometheus", "uid": "${datasource}"}}
          ],
          "transformations": [

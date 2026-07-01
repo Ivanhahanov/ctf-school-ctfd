@@ -41,8 +41,7 @@ function _labCardClosed(id) {
     return !el || el.offsetParent === null;
 }
 
-// A single self-terminating poll loop. It stops itself once the card's modal is
-// closed. The interval adapts to the lab phase.
+// A single self-terminating poll loop. Stops once the card's modal is closed.
 function _labEnsurePoll(id, intervalMs) {
     var st = _labState[id];
     if (st && st.interval === intervalMs) return;
@@ -58,47 +57,82 @@ function _labEnsurePoll(id, intervalMs) {
 
 // ── small DOM helpers ──────────────────────────────────────────────────────
 function _el(id, suffix) { return document.getElementById(suffix + "-" + id); }
-// Hide with !important so an inline style always beats Bootstrap's display
-// utility classes (e.g. .d-flex is `display:flex!important`, which a plain
-// inline `display:none` cannot override).
+function _esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) {
+    return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+// Hide with !important so an inline style always beats Bootstrap's display utils.
 function _show(el, on) {
     if (!el) return;
     if (on) el.style.removeProperty("display");
     else    el.style.setProperty("display", "none", "important");
 }
 
-var _LAB_PHASE_CSS = {
-    Running:      "bg-success",
-    Pending:      "bg-warning text-dark",
-    Provisioning: "bg-warning text-dark",
-    Terminating:  "bg-warning text-dark",
-    Failed:       "bg-danger",
-    error:        "bg-danger",
+// status pill — colour + label only; the shape never changes (no reflow)
+var _PILL = {
+    idle:    ["is-idle", "Idle"],
+    Running: ["is-run",  "Running"],
+    Pending: ["is-busy", "Starting"],
+    Provisioning: ["is-busy", "Starting"],
+    Terminating:  ["is-busy", "Stopping"],
+    Failed:  ["is-fail", "Failed"],
+    error:   ["is-fail", "Failed"],
 };
+function _pill(id, phaseKey, textOverride) {
+    var el = _el(id, "lab-pill"), t = _el(id, "lab-pill-text");
+    var def = _PILL[phaseKey] || ["is-idle", phaseKey];
+    if (el) el.className = "lab-pill " + def[0];
+    if (t)  t.textContent = textOverride || def[1];
+}
 
-function _labBadge(id, phase, show) {
-    var el = _el(id, "lab-badge");
+// The ONE morphing primary action. Same element & height in every state.
+var _SPIN = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
+function _primary(id, mode, opts) {
+    var a = _el(id, "lab-primary");
+    if (!a) return;
+    opts = opts || {};
+    a.className = "btn lab-primary";
+    a.onclick = null; a.removeAttribute("target"); a.removeAttribute("rel"); a.setAttribute("href", "#");
+    function body(icon, label) { return icon + '<span id="lab-primary-text-' + id + '">' + _esc(label) + "</span>"; }
+    if (mode === "checking") {
+        a.classList.add("btn-secondary", "disabled");
+        a.innerHTML = body(_SPIN, opts.label || "Checking status…");
+    } else if (mode === "start") {
+        a.classList.add("btn-success");
+        a.innerHTML = body('<i class="fas fa-play"></i>', opts.label || "Start Lab");
+        a.onclick = function (e) { e.preventDefault(); labAction(id, "start"); };
+    } else if (mode === "starting") {
+        a.classList.add("btn-secondary", "disabled");
+        a.innerHTML = body(_SPIN, opts.label || "Starting…");
+    } else if (mode === "stopping") {
+        a.classList.add("btn-secondary", "disabled");
+        a.innerHTML = body(_SPIN, opts.label || "Stopping…");
+    } else if (mode === "open") {
+        a.classList.add("btn-primary");
+        a.setAttribute("href", "/lab/" + id + "/enter");
+        a.setAttribute("target", "_blank"); a.setAttribute("rel", "noopener");
+        a.innerHTML = body('<i class="fas ' + (opts.terminal ? "fa-terminal" : "fa-display") + '"></i>',
+                           opts.label || (opts.terminal ? "Open Terminal Workspace" : "Open Desktop Workspace"));
+    }
+}
+
+function _secondary(id, showStop, showRestart) {
+    _show(_el(id, "lab-secondary"), showStop || showRestart);
+    _show(_el(id, "lab-btn-stop"), showStop);
+    _show(_el(id, "lab-btn-reload"), showRestart);
+}
+
+// fixed-height hint slot; mode: "" | "muted" | "warn" | "err"
+function _hint(id, html, mode) {
+    var el = _el(id, "lab-hint");
     if (!el) return;
-    if (!show) { _show(el, false); return; }
-    el.textContent = phase.charAt(0).toUpperCase() + phase.slice(1);
-    el.className   = "badge rounded-pill " + (_LAB_PHASE_CSS[phase] || "bg-secondary");
-    _show(el, true);
+    var wrap = (mode === "warn" || mode === "err") ? " wrap" : "";
+    el.className = "lab-hint" + (mode ? " " + mode : "") + wrap;
+    el.innerHTML = html || "&nbsp;";
 }
 
 function _labSetBusy(id, busy) {
-    ["start", "stop", "reload"].forEach(function (a) {
-        var b = _el(id, "lab-btn-" + a);
-        if (b) b.disabled = busy;
+    ["lab-btn-stop", "lab-btn-reload"].forEach(function (s) {
+        var b = _el(id, s); if (b) b.disabled = busy;
     });
-}
-
-function _labMsg(id, text, ok) {
-    var el = _el(id, "lab-msg");
-    if (!el) return;
-    el.className     = "mt-2 alert py-1 px-2 small mb-0 " + (ok ? "alert-success" : "alert-danger");
-    el.textContent   = text;
-    el.style.display = "";
-    setTimeout(function () { el.style.display = "none"; }, 6000);
 }
 
 // ── render the whole card from a status payload ────────────────────────────
@@ -107,135 +141,122 @@ function _labUpdateUI(id, data) {
     _labFails[id] = 0;
     var phase   = data.phase || (data.running ? "Running" : "idle");
     var running = !!data.running;
-    var booting = !running && phase !== "idle" && phase !== "stopped" && phase !== "error" && phase !== "Failed";
+    var stopping = phase === "Terminating";
+    var booting = !running && !stopping && phase !== "idle" && phase !== "stopped"
+                  && phase !== "error" && phase !== "Failed";
     var failed  = phase === "error" || phase === "Failed";
-    var idle    = !running && !booting && !failed;
+    var idle    = !running && !booting && !stopping && !failed;
 
-    // first successful check resolves the "Checking…" placeholder
-    _show(_el(id, "lab-checking"), false);
-
-    _labBadge(id, phase, running || booting || failed);
-    _show(_el(id, "lab-idle"), idle);
-
-    // single provisioning status line (no log box — keeps the card from jumping)
-    var infoText = _el(id, "lab-info-text");
-    if (infoText) infoText.textContent = data.message || "Starting…";
-    _show(_el(id, "lab-info"), booting);
-
-    // workspace link (single entry point)
-    var wsDiv  = _el(id, "lab-workspace");
-    var wsLink = _el(id, "lab-ws-link");
-    if (wsDiv && wsLink) {
-        var ws = data.workspace;
-        if (running && ws && ws.address) {
-            // Go through /enter so CTFd mints the team-scoped access cookie first.
-            wsLink.href = "/lab/" + id + "/enter";
-            var icon  = ws.type === "VNC" ? "fa-display" : "fa-terminal";
-            var label = ws.type === "VNC" ? "Open Desktop Workspace" : "Open Terminal Workspace";
-            wsLink.innerHTML = '<i class="fas ' + icon + '"></i><span>' + label + '</span>';
-            _show(wsDiv, true);
-        } else {
-            _show(wsDiv, false);
-        }
+    if (running) {
+        var ws = data.workspace || {};
+        _pill(id, "Running");
+        _primary(id, "open", { terminal: ws.type && ws.type !== "VNC" });
+        _secondary(id, true, true);
+        _hint(id, '<i class="fas fa-lock me-1 opacity-75"></i>Services are reachable only from inside your workspace.');
+    } else if (booting) {
+        _pill(id, phase);
+        _primary(id, "starting");
+        _secondary(id, true, false);   // allow cancelling a provisioning lab
+        _hint(id, _esc(data.message || "Provisioning your workspace…"));
+    } else if (stopping) {
+        _pill(id, "Terminating");
+        _primary(id, "stopping");
+        _secondary(id, false, false);
+        _hint(id, _esc(data.message || "Shutting the workspace down…"));
+    } else if (failed) {
+        _pill(id, "Failed");
+        _primary(id, "start", { label: "Start Lab" });
+        _secondary(id, false, false);
+        _hint(id, '<i class="fas fa-triangle-exclamation me-1"></i>'
+              + _esc(data.message || "The lab failed to start.") + " Press Start to try again.", "err");
+    } else { // idle
+        _pill(id, "idle");
+        _primary(id, "start");
+        _secondary(id, false, false);
+        _hint(id, "An isolated desktop workspace — start it to solve this challenge.");
     }
 
-    // controls
-    _show(_el(id, "lab-btn-start"),  idle || failed);
-    _show(_el(id, "lab-btn-stop"),   running || booting);
-    _show(_el(id, "lab-btn-reload"), running);
-
-    // adapt poll rate: fast while booting, relaxed once stable
-    _labEnsurePoll(id, booting ? 3000 : 8000);
+    _labEnsurePoll(id, booting || stopping ? 3000 : 8000);
 }
 
 // ── fetch status ───────────────────────────────────────────────────────────
-// Transient connection blips (e.g. ERR_EMPTY_RESPONSE while a proxy recycles a
-// connection) must not freeze the card or flash a hard error. We keep the last
-// good state, retry on the normal poll cadence, and only surface a soft hint.
+// Transient connection blips must not freeze the card or flash a hard error.
 function _labRefreshStatus(id) {
     fetch("/api/v1/lab/" + id + "/status", { credentials: "same-origin", cache: "no-store" })
-        .then(function (r) {
-            if (!r.ok) throw new Error("HTTP " + r.status);
-            return r.json();
-        })
+        .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
         .then(function (d) { _labUpdateUI(id, d); })
         .catch(function () {
             _labFails[id] = (_labFails[id] || 0) + 1;
             if (_labSeen[id]) return;            // keep last good UI, just retry silently
-            // Never rendered a real status yet: keep the spinner, but after a few
-            // failures soften the wording so the user knows we're still trying.
-            var txt = _el(id, "lab-checking-text");
-            if (txt && _labFails[id] >= 2) txt.textContent = "Connecting to lab service… retrying";
+            if (_labFails[id] >= 2) {
+                _primary(id, "checking", { label: "Connecting to lab service…" });
+                _hint(id, "Retrying…");
+            }
         });
 }
 
 // ── start / stop / reload ──────────────────────────────────────────────────
 function labAction(id, action) {
     _labSetBusy(id, true);
+    // optimistic UI — reflect the intent immediately (no waiting for the poll)
     if (action === "start" || action === "reload") {
-        _show(_el(id, "lab-idle"), false);
-        _show(_el(id, "lab-workspace"), false);   // hide stale link during (re)start
-        _labBadge(id, "Pending", true);
-        var infoText = _el(id, "lab-info-text");
-        if (infoText) infoText.textContent = action === "reload" ? "Restarting — recreating the workspace…" : "Starting…";
-        _show(_el(id, "lab-info"), true);
+        _pill(id, "Pending");
+        _primary(id, "starting", { label: action === "reload" ? "Restarting…" : "Starting…" });
+        _secondary(id, true, false);
+        _hint(id, action === "reload" ? "Recreating your workspace…" : "Requesting a workspace…");
         _labEnsurePoll(id, 3000);
-    }
-    if (action === "stop") {
-        _labBadge(id, "Terminating", true);
-        _show(_el(id, "lab-workspace"), false);
+    } else if (action === "stop") {
+        _pill(id, "Terminating");
+        _primary(id, "stopping");
+        _secondary(id, false, false);
+        _hint(id, "Shutting the workspace down…");
     }
 
     fetch("/api/v1/lab/" + id + "/" + action, {
-        method:      "POST",
-        credentials: "same-origin",
-        // Content-Type must be application/json so CTFd validates the CSRF token
-        // from the header (otherwise it looks for a form nonce and returns 403).
+        method: "POST", credentials: "same-origin",
+        // Content-Type must be JSON so CTFd validates the CSRF header token.
         headers: { "Content-Type": "application/json", "CSRF-Token": CTFd.config.csrfNonce },
         body: "{}",
     })
     .then(function (r) {
-        if (!r.ok) return r.json().then(function (e) { throw e; }).catch(function () { throw { message: "HTTP " + r.status }; });
+        if (!r.ok) return r.json().then(function (e) { e.__status = r.status; throw e; })
+                               .catch(function (e) { throw (e && e.message ? e : { message: "HTTP " + r.status }); });
         return r.json();
     })
-    .then(function (d) {
-        _labMsg(id, d.message || action + (d.success ? " OK" : " failed"), !!d.success);
-        _labRefreshStatus(id);
-    })
+    .then(function () { _labRefreshStatus(id); })
     .catch(function (err) {
-        if (err && err.limit_reached) _labLimitMsg(id, err);
-        else _labMsg(id, (err && err.message) ? err.message : "Network error", false);
-        _labRefreshStatus(id);
+        if (err && err.limit_reached) _labLimit(id, err);
+        else {
+            // revert the optimistic UI and explain the failure on the card
+            _labRefreshStatus(id);
+            _hint(id, '<i class="fas fa-circle-exclamation me-1"></i>'
+                  + _esc((err && err.message) || "Something went wrong. Try again."), "err");
+        }
     })
     .finally(function () { _labSetBusy(id, false); });
 }
 
-// Persistent, actionable message when the team is at its lab limit.
-function _labLimitMsg(id, err) {
-    var el = _el(id, "lab-msg");
-    if (!el) return;
-    var msg = (err && err.message) ? err.message : "You have reached your lab limit.";
-    el.className   = "mt-2 alert alert-warning py-2 px-2 small mb-0";
-    el.innerHTML   = '<i class="fas fa-triangle-exclamation me-1"></i>'
-        + msg.replace(/</g, "&lt;")
-        + ' <a href="/labs" class="alert-link">Manage your labs →</a>';
-    el.style.display = "";   // persistent — do not auto-hide
+// At the lab limit → a calm, explicit card state (not a red alarm), with the way out.
+function _labLimit(id, err) {
+    _pill(id, "idle");
+    _primary(id, "start");     // Start stays available; the hint says why it was blocked
+    _secondary(id, false, false);
+    var have = err.active, max = err.limit;
+    var count = (have != null && max != null) ? (" (" + have + "/" + max + ")") : "";
+    _hint(id, '<i class="fas fa-triangle-exclamation me-1"></i>You’re running the maximum number of labs'
+          + count + '. Stop one to start this challenge. '
+          + '<a href="/labs">Manage your labs →</a>', "warn");
 }
 
-// First-open race: CTFd renders the challenge view (Alpine x-html) at a moment
-// that is not synchronised with this script loading or with postRender, so on
-// the very first open neither reliably fires _labInit (the status request is
-// simply never made — confirmed in the Network panel). A MutationObserver fires
-// the instant the card is inserted, independent of all that ordering. _labInit
-// is idempotent, so overlapping with postRender is harmless.
+// First-open race: CTFd renders the challenge view at a moment not synchronised
+// with this script or postRender, so the status request may never fire. A
+// MutationObserver fires the instant the card is inserted. _labInit is idempotent.
 (function () {
     function initCard(el) {
         var id = parseInt(el.id.slice("lab-card-".length), 10);
         if (id) _labInit(id);
     }
-    // Already in the DOM (script evaluated after render).
     document.querySelectorAll('[id^="lab-card-"]').forEach(initCard);
-    // Inserted later (script evaluated before render — the first-open race).
     if (!window.__labCardObserver) {
         window.__labCardObserver = new MutationObserver(function (muts) {
             muts.forEach(function (m) {

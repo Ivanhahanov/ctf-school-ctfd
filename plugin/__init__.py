@@ -580,16 +580,19 @@ def lab_enter(challenge_id):
 _LABS_PAGE = """
 {% extends "base.html" %}
 {% block content %}
-<div class="container py-4">
-  <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
-    <h2 class="mb-0"><i class="fas fa-display me-2 opacity-75"></i>My Labs</h2>
+<div class="container py-4" style="max-width:820px">
+  <div class="d-flex align-items-start justify-content-between flex-wrap gap-2 mb-1">
+    <div>
+      <h2 class="mb-1"><i class="fas fa-display me-2 opacity-75"></i>Labs</h2>
+      <div class="text-muted small"><i class="fas fa-users me-1 opacity-75"></i>Workspaces are shared across your team.</div>
+    </div>
     <a href="/challenges" class="btn btn-outline-secondary btn-sm">
       <i class="fas fa-flag me-1"></i>Browse challenges
     </a>
   </div>
-  <div id="labs-root">
+  <div id="labs-root" class="mt-3">
     <div class="text-muted d-flex align-items-center gap-2">
-      <span class="spinner-border spinner-border-sm"></span> Loading your labs…
+      <span class="spinner-border spinner-border-sm"></span> Loading labs…
     </div>
   </div>
 </div>
@@ -625,7 +628,7 @@ def lab_start(challenge_id):
             "limit":         MAX_CONCURRENT_LABS,
             "message": (
                 f"You already have {active} of {MAX_CONCURRENT_LABS} labs running. "
-                "Stop one from “My Labs” before starting another."
+                "Stop one from the Labs page before starting another."
             ),
         }), 429
 
@@ -828,6 +831,6 @@ def load(app):
 
     app.register_blueprint(lab_api)
     register_plugin_assets_directory(app, base_path="/plugins/lab_manager/assets/")
-    register_user_page_menu_bar("My Labs", "/labs")
+    register_user_page_menu_bar("Labs", "/labs")
     CHALLENGE_CLASSES["lab"] = LabChallengeType
     logger.info("CTFd Lab Manager plugin loaded")

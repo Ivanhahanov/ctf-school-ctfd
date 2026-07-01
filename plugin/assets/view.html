@@ -1,65 +1,70 @@
 {% extends "challenge.html" %}
 
 {% block description %}
-<div id="lab-card-{{ challenge.id }}" class="rounded-3 p-3 mb-3 border"
-     style="background:var(--bs-tertiary-bg,#f1f3f5)">
+<style>
+  /* Scoped lab-card styling. The whole point is a STABLE layout: fixed slots that
+     never change height as the status updates, so the card (and the description
+     below it) never jumps while polling. */
+  .lab-card{border:1px solid var(--bs-border-color,#dee2e6);border-radius:.8rem;
+            padding:1rem;background:var(--bs-tertiary-bg,#f8f9fa)}
+  .lab-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem}
+  .lab-label{font-size:.7rem;font-weight:700;letter-spacing:.09em;text-transform:uppercase;
+             color:var(--bs-secondary-color,#6c757d)}
+  .lab-label i{opacity:.7;margin-right:.4rem}
+  /* status pill: fixed shape, only colour/text change → no reflow */
+  .lab-pill{font-size:.68rem;font-weight:700;letter-spacing:.03em;text-transform:uppercase;
+            padding:.22rem .6rem;border-radius:999px;white-space:nowrap;
+            display:inline-flex;align-items:center;gap:.35rem}
+  .lab-pill .dot{width:.5rem;height:.5rem;border-radius:50%;background:currentColor}
+  .lab-pill.is-idle{color:#6c757d;background:rgba(108,117,125,.15)}
+  .lab-pill.is-run{color:#198754;background:rgba(25,135,84,.15)}
+  .lab-pill.is-busy{color:#b8860b;background:rgba(255,193,7,.18)}
+  .lab-pill.is-fail{color:#dc3545;background:rgba(220,53,69,.15)}
+  .lab-pill.is-busy .dot{animation:labpulse 1s ease-in-out infinite}
+  @keyframes labpulse{0%,100%{opacity:1}50%{opacity:.25}}
+  /* ONE primary button that morphs Start → Starting… → Open Workspace.
+     Always the same height, so swapping states never shifts anything. */
+  .lab-primary{width:100%;min-height:2.7rem;display:flex;align-items:center;
+               justify-content:center;gap:.5rem;font-weight:600}
+  .lab-primary.disabled{pointer-events:none;opacity:.75}
+  .lab-secondary{display:flex;gap:.5rem;margin-top:.5rem}
+  .lab-secondary .btn{flex:1}
+  /* fixed-height hint slot: reserves space so showing/hiding text never jumps.
+     One line + ellipsis by default; warnings/errors may wrap. */
+  .lab-hint{min-height:1.5rem;margin-top:.7rem;font-size:.8rem;line-height:1.35;
+            color:var(--bs-secondary-color,#6c757d);overflow:hidden;
+            white-space:nowrap;text-overflow:ellipsis}
+  .lab-hint.wrap{white-space:normal}
+  .lab-hint.warn{color:#997404}
+  .lab-hint.err{color:#b02a37}
+  .lab-hint a{font-weight:600;white-space:nowrap}
+</style>
 
-  <div class="d-flex align-items-center justify-content-between mb-2">
-    <span class="fw-semibold small text-uppercase text-muted" style="letter-spacing:.07em">
-      <i class="fas fa-display me-1 opacity-75"></i>Lab Environment
-    </span>
-    <span id="lab-badge-{{ challenge.id }}" class="badge rounded-pill" style="display:none"></span>
+<div id="lab-card-{{ challenge.id }}" class="lab-card">
+
+  <div class="lab-head">
+    <span class="lab-label"><i class="fas fa-display"></i>Lab Environment</span>
+    <span id="lab-pill-{{ challenge.id }}" class="lab-pill is-idle"><span class="dot"></span><span id="lab-pill-text-{{ challenge.id }}">Checking</span></span>
   </div>
 
-  <!-- transient state while the very first status check is in flight.
-       NB: uses inline flex (not the .d-flex class) so that hiding it via an
-       inline `display:none` actually works — .d-flex is `display:flex!important`
-       and an inline style cannot override an !important class. -->
-  <div id="lab-checking-{{ challenge.id }}" class="small text-muted py-1"
-       style="display:flex;align-items:center;gap:.5rem">
+  <!-- The single morphing primary action. Rendered as an <a> so it can BE a real
+       link (Open Workspace) or ACT as a button (Start) without swapping elements. -->
+  <a id="lab-primary-{{ challenge.id }}" class="btn btn-secondary lab-primary disabled" href="#" role="button">
     <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-    <span id="lab-checking-text-{{ challenge.id }}">Checking lab status…</span>
+    <span id="lab-primary-text-{{ challenge.id }}">Checking status…</span>
+  </a>
+
+  <!-- Secondary controls appear only while a lab exists (running / provisioning). -->
+  <div id="lab-secondary-{{ challenge.id }}" class="lab-secondary" style="display:none">
+    <button class="btn btn-outline-secondary btn-sm" id="lab-btn-reload-{{ challenge.id }}"
+            onclick="labAction({{ challenge.id }}, 'reload')"><i class="fas fa-rotate me-1"></i>Restart</button>
+    <button class="btn btn-outline-danger btn-sm" id="lab-btn-stop-{{ challenge.id }}"
+            onclick="labAction({{ challenge.id }}, 'stop')"><i class="fas fa-stop me-1"></i>Stop</button>
   </div>
 
-  <!-- idle: lab has never been started -->
-  <div id="lab-idle-{{ challenge.id }}" class="small text-muted mb-2" style="display:none">
-    Spin up an isolated desktop workspace to solve this challenge.
-  </div>
-
-  <!-- provisioning: a single status line (the controller's current message) -->
-  <div id="lab-info-{{ challenge.id }}" class="small text-muted py-1" style="display:none">
-    <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-    <span id="lab-info-text-{{ challenge.id }}"></span>
-  </div>
-
-  <!-- running: the workspace is the single entry point -->
-  <div id="lab-workspace-{{ challenge.id }}" class="mb-2" style="display:none">
-    <a id="lab-ws-link-{{ challenge.id }}" href="#" target="_blank" rel="noopener"
-       class="btn btn-primary w-100 d-flex align-items-center justify-content-center gap-2">
-      <i class="fas fa-display"></i><span>Open Desktop Workspace</span>
-    </a>
-    <div class="small text-muted mt-2">
-      <i class="fas fa-lock me-1 opacity-75"></i>All challenge services are reachable only from inside the workspace.
-    </div>
-  </div>
-
-  <!-- controls -->
-  <div class="d-flex gap-2 flex-wrap">
-    <button class="btn btn-success btn-sm px-3" id="lab-btn-start-{{ challenge.id }}"
-            onclick="labAction({{ challenge.id }}, 'start')" style="display:none">
-      <i class="fas fa-play me-1"></i>Start Lab
-    </button>
-    <button class="btn btn-outline-danger btn-sm px-3" id="lab-btn-stop-{{ challenge.id }}"
-            onclick="labAction({{ challenge.id }}, 'stop')" style="display:none">
-      <i class="fas fa-stop me-1"></i>Stop
-    </button>
-    <button class="btn btn-outline-secondary btn-sm px-3" id="lab-btn-reload-{{ challenge.id }}"
-            onclick="labAction({{ challenge.id }}, 'reload')" style="display:none">
-      <i class="fas fa-rotate me-1"></i>Restart
-    </button>
-  </div>
-
-  <div id="lab-msg-{{ challenge.id }}" class="mt-2 alert py-1 px-2 small mb-0" style="display:none"></div>
+  <!-- Fixed-height hint / message slot (idle help, provisioning status, running
+       note, or an actionable error). Never toggles the card height. -->
+  <div id="lab-hint-{{ challenge.id }}" class="lab-hint"></div>
 </div>
 
 <hr class="my-2">

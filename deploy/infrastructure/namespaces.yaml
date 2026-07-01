@@ -19,3 +19,10 @@ metadata: { name: monitoring }
 apiVersion: v1
 kind: Namespace
 metadata: { name: ctfd }
+---
+# The controller namespace. Created HERE (not by the controller's own config) so it
+# exists before the dev-secrets and the controller Deployment need it — one owner,
+# no bootstrap race. The controller Kustomization only deploys INTO it.
+apiVersion: v1
+kind: Namespace
+metadata: { name: controller-system }

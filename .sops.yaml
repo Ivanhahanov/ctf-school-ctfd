@@ -1,0 +1,11 @@
+# SOPS creation rules. `sops -e -i <file>` picks the matching rule by path.
+# Only the VALUES under data/stringData are encrypted; keys and structure stay
+# readable so Flux/kustomize can still parse the manifest and you can diff it.
+#
+# The `age` recipient is the PUBLIC key. The matching PRIVATE key lives only in
+# the cluster (Secret `sops-age` in flux-system) and in your password manager —
+# never in git. To rotate/add recipients: edit this list, then `sops updatekeys <file>`.
+creation_rules:
+  - path_regex: deploy/clusters/cloud/secrets/.*\.enc\.yaml$
+    encrypted_regex: ^(data|stringData)$
+    age: age1nnmzxhd23kq4scqwalrdnts2qp2l4urq2x8vlhudc44624x62d7qvpsr4e

@@ -1,9 +1,9 @@
 # Values for the CLOUD (prod) cluster. SAME mechanism as kind (clusters/base) —
 # only these values differ. Flux fills the ${VAR} placeholders from here.
 #
-# The HMAC secret is NOT here (secrets don't belong in a ConfigMap): create a
-# `ctf-school-secret` Secret (key `secret`) in BOTH the controller-system and
-# ctfd namespaces via SOPS / sealed-secrets / external-secrets.
+# The HMAC secret is NOT here (secrets don't belong in a ConfigMap). It ships as a
+# SOPS-encrypted Secret in ./secrets/, decrypted in-cluster by the `secrets` Flux
+# Kustomization. Bootstrap (loading the age key as `sops-age`) is in ./README.md.
 apiVersion: v1
 kind: ConfigMap
 metadata: { name: cluster-config, namespace: flux-system }

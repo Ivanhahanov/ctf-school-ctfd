@@ -1,0 +1,7 @@
+# age private key for SOPS — decrypts every cloud secret. NEVER commit it.
+# Lives only here (dev machine) + in your password manager + the cluster Secret.
+/.sops-age-key.txt
+*.agekey
+
+# Locally bootstrapped ops binaries (age, sops, yq, …). Not part of the repo.
+/bin/

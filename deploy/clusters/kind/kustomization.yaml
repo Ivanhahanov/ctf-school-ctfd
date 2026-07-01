@@ -4,4 +4,5 @@ resources:
   - flux-system.yaml      # repo source + root Kustomization (self-managed)
   - ../base               # shared sources + platform Kustomizations (the mechanism)
   - cluster-config.yaml   # THIS cluster's values (the only real divergence)
-  - secrets.yaml          # dev-only HMAC secret (prod supplies it externally)
+  - dev-secrets.yaml      # Flux Kustomization that applies the dev secret AFTER
+                          # infrastructure (secrets/ dir) — avoids the bootstrap race

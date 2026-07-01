@@ -4,6 +4,5 @@ resources:
   - flux-system.yaml      # repo source + root Kustomization (self-managed)
   - ../base               # SAME shared mechanism as kind
   - cluster-config.yaml   # cloud values
-  # NOTE: no secrets.yaml here — the `ctf-school-secret` Secret is supplied
-  # externally (SOPS / sealed-secrets / external-secrets) in controller-system
-  # and ctfd namespaces. See cluster-config.yaml.
+  - secrets.yaml          # Flux Kustomization: SOPS-decrypts the ctf-school-secret
+                          # AFTER infrastructure (dependsOn) — see secrets/ + README

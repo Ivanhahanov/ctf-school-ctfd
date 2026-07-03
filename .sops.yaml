@@ -6,6 +6,9 @@
 # the cluster (Secret `sops-age` in flux-system) and in your password manager —
 # never in git. To rotate/add recipients: edit this list, then `sops updatekeys <file>`.
 creation_rules:
-  - path_regex: deploy/clusters/cloud/secrets/.*\.enc\.yaml$
+  # kind and cloud both encrypt with the same recipient — one procedure, one key.
+  # (kind's dev VALUES differ from prod's; only the mechanism is shared.)
+  # Covers the ctf-school-secret (secrets/) AND the optional manual TLS cert (cloud/tls/).
+  - path_regex: deploy/clusters/(kind|cloud)/(secrets|tls)/.*\.enc\.yaml$
     encrypted_regex: ^(data|stringData)$
     age: age1nnmzxhd23kq4scqwalrdnts2qp2l4urq2x8vlhudc44624x62d7qvpsr4e

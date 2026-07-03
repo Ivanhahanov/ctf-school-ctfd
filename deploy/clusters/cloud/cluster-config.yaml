@@ -11,6 +11,12 @@ data:
   CTF_DOMAIN: "ctf.example.com"                         # ← your real domain
   CTF_SCHEME: "https"
   CTF_FLAG_FORMAT: "CTF{%s}"
-  CONTROLLER_IMAGE: "ghcr.io/your-org/ctf-school-controller"  # ← your registry
-  CTFD_IMAGE: "ghcr.io/your-org/ctfd-lab"
+  # TLS: start on STAGING (validate DNS-01 + renewal without hitting prod rate limits),
+  # then switch to letsencrypt-prod once staging issues cleanly.
+  TLS_ISSUER: "letsencrypt-staging"
+  ACME_EMAIL: "admin@ctf.example.com"                   # ← Let's Encrypt account email
+  # Docker Hub org `explabs`, `ctf-school-` prefix (Docker Hub repos are flat).
+  CONTROLLER_IMAGE: "docker.io/explabs/ctf-school-controller"
+  CTFD_IMAGE: "docker.io/explabs/ctf-school-ctfd"
+  GUARD_IMAGE: "docker.io/explabs/ctf-school-guard:v0.1.0"   # full ref
   IMAGE_TAG: "v0.1.0"

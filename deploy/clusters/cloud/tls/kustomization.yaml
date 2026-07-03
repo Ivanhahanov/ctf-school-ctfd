@@ -1,0 +1,15 @@
+# Cloud TLS — pick ONE option (this is an event platform, < 60 days, so either works):
+#
+#   OPTION A — Let's Encrypt via Cloudflare DNS-01 (auto-issue + renew). DEFAULT below.
+#   OPTION B — Manual cert (a wildcard cert you obtained once; no cert-manager, no renewal).
+#
+# To switch to B: comment out acme-issuers.yaml + certificate.yaml, uncomment
+# ctfd-tls.enc.yaml, and `sops` in your fullchain + key. Only ONE source of `ctfd-tls`.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  # ── Option A: Let's Encrypt (Cloudflare DNS-01) ──
+  - acme-issuers.yaml     # letsencrypt-staging + letsencrypt-prod ClusterIssuers
+  - certificate.yaml      # cert-manager Certificate (issuerRef ${TLS_ISSUER})
+  # ── Option B: manual cert (uncomment, and comment out the two above) ──
+  # - ctfd-tls.enc.yaml    # SOPS-encrypted kubernetes.io/tls Secret you supply

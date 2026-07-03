@@ -12,3 +12,6 @@ nodes:
   - role: worker   # mariadb-0
   - role: worker   # mariadb-1
   - role: worker   # mariadb-2 / ctfd / keydb
+# Flux OCI artifacts + prod images come from Docker Hub (real DNS/TLS) — no local
+# registry, so no containerd/registry patches needed. Dev images are `kind load`ed.
+

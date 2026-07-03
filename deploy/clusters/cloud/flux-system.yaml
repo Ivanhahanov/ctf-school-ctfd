@@ -1,15 +1,46 @@
-# Root Flux source for the cloud cluster — same as kind, path ./deploy/clusters/cloud.
-# Read-only; no bootstrap. Private repo → add a read-only deploy key (see README).
+# Root Flux sources for the cloud cluster — SAME OCI mechanism and SAME registry as
+# kind (Docker Hub, docker.io/$DOCKERHUB_USER); prod just pins ${TAG} to an immutable
+# digest/version. Applied by the deploy procedure (make/CI) with ${REGISTRY}/${TAG}
+# filled in; keep ${OCI_INSECURE}=false. `flux create secret oci` if the repos are private.
+#
+# spec.verify (cosign KEYLESS) — Flux refuses to reconcile an artifact NOT signed by the
+# expected GitHub Actions release workflow (closes the "push to Docker Hub → cluster-admin"
+# supply-chain hole). Only on CLOUD: prod artifacts come from the signed CI workflows;
+# kind/demo pulls locally-`make ci`-pushed UNSIGNED artifacts, so kind has no verify.
+# The subject identity is the GitHub OWNER/REPO — update if the repos move to an org.
 apiVersion: source.toolkit.fluxcd.io/v1
-kind: GitRepository
+kind: OCIRepository
 metadata:
   name: flux-system
   namespace: flux-system
 spec:
-  interval: 5m
-  url: https://github.com/Ivanhahanov/ctf-school-ctfd
+  interval: 1m
+  url: oci://${REGISTRY}/ctf-school-deploy
   ref:
-    branch: main
+    tag: "${TAG}"
+  insecure: ${OCI_INSECURE}
+  verify:
+    provider: cosign
+    matchOIDCIdentity:
+      - issuer: "^https://token\\.actions\\.githubusercontent\\.com$"
+        subject: "^https://github\\.com/Ivanhahanov/ctf-school-ctfd/\\.github/workflows/release\\.yml@refs/.+$"
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: OCIRepository
+metadata:
+  name: controller
+  namespace: flux-system
+spec:
+  interval: 1m
+  url: oci://${REGISTRY}/ctf-school-controller-config
+  ref:
+    tag: "${TAG}"
+  insecure: ${OCI_INSECURE}
+  verify:
+    provider: cosign
+    matchOIDCIdentity:
+      - issuer: "^https://token\\.actions\\.githubusercontent\\.com$"
+        subject: "^https://github\\.com/Ivanhahanov/ctf-school-controller/\\.github/workflows/release\\.yml@refs/.+$"
 ---
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
@@ -21,5 +52,5 @@ spec:
   path: ./deploy/clusters/cloud
   prune: true
   sourceRef:
-    kind: GitRepository
+    kind: OCIRepository
     name: flux-system

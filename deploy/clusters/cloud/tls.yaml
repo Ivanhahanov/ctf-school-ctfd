@@ -1,0 +1,24 @@
+# Sources the cloud ctfd-tls cert AFTER `infrastructure` (cert-manager). Cloud only, so
+# kind never registers an ACME account. postBuild fills ${TLS_ISSUER}/${ACME_EMAIL}/
+# ${CTF_DOMAIN}; decryption handles the OPTION-B manual TLS secret if it's enabled.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: tls
+  namespace: flux-system
+spec:
+  interval: 30m
+  path: ./deploy/clusters/cloud/tls
+  prune: true
+  dependsOn:
+    - { name: infrastructure }
+  sourceRef:
+    kind: OCIRepository
+    name: flux-system
+  postBuild:
+    substituteFrom:
+      - { kind: ConfigMap, name: cluster-config }
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age

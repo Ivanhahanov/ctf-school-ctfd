@@ -1,28 +1,74 @@
+# Platform namespaces + Pod Security Admission. Levels chosen from what actually runs
+# (verified: only kube-system + monitoring host privileged/hostPath/hostPID pods):
+#   * baseline enforce  — cert-manager, envoy-gateway-system, mariadb-operator, ctfd
+#     (all pass; blocks privileged / host namespaces / hostPath / dangerous caps).
+#   * restricted enforce — controller-system (the manager Deployment is compliant:
+#     runAsNonRoot, drop-ALL, RO rootfs, RuntimeDefault seccomp).
+#   * monitoring — NO enforce: node-exporter legitimately needs hostPID + hostPath
+#     (/proc,/sys); we only warn/audit against baseline for visibility.
+# warn/audit are non-blocking, so they're set to the stricter level everywhere.
 apiVersion: v1
 kind: Namespace
-metadata: { name: cert-manager }
+metadata:
+  name: cert-manager
+  labels:
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted
 ---
 apiVersion: v1
 kind: Namespace
-metadata: { name: envoy-gateway-system }
+metadata:
+  name: envoy-gateway-system
+  labels:
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted
 ---
 apiVersion: v1
 kind: Namespace
-metadata: { name: mariadb-operator }
+metadata:
+  name: mariadb-operator
+  labels:
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted
 ---
+# node-exporter needs hostPID + hostPath, which BASELINE forbids — so no enforce here.
+# Warn/audit against baseline so any OTHER over-privileged pod is still surfaced.
 apiVersion: v1
 kind: Namespace
-metadata: { name: monitoring }
+metadata:
+  name: monitoring
+  labels:
+    pod-security.kubernetes.io/warn: baseline
+    pod-security.kubernetes.io/audit: baseline
 ---
 # The application namespace (MariaDB, KeyDB, CTFd live here). Created by the
-# infrastructure Kustomization so the data/cache/ctfd apps that depend on it have
+# infrastructure Kustomization so the data/cache/ctfd apps that depend on it have it.
 apiVersion: v1
 kind: Namespace
-metadata: { name: ctfd }
+metadata:
+  name: ctfd
+  labels:
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted
 ---
 # The controller namespace. Created HERE (not by the controller's own config) so it
-# exists before the dev-secrets and the controller Deployment need it — one owner,
-# no bootstrap race. The controller Kustomization only deploys INTO it.
+# exists before the secrets and the controller Deployment need it — one owner, no
+# bootstrap race. The controller Kustomization only deploys INTO it. The manager is
+# restricted-compliant, so this namespace enforces the strictest level.
 apiVersion: v1
 kind: Namespace
-metadata: { name: controller-system }
+metadata:
+  name: controller-system
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted

@@ -1,0 +1,34 @@
+# OPTION B (MANUAL cert) — a wildcard cert you obtained out-of-band (certbot --manual
+# DNS-01, or a purchased cert). Since the platform runs < 60 days (< a cert's lifetime),
+# NO auto-renewal is needed, so cert-manager isn't involved for cloud TLS at all.
+# Fill tls.crt (fullchain) + tls.key via `sops`, then enable this file (and disable
+# certificate.yaml + acme-issuers.yaml) in kustomization.yaml.
+apiVersion: v1
+kind: Secret
+metadata:
+    name: ctfd-tls
+    namespace: ctfd
+type: kubernetes.io/tls
+stringData:
+    tls.crt: ENC[AES256_GCM,data:XweYhMXeN4IIaz0mZhStAQK+7GviTqbmcWM=,iv:+dRUIist7kLZjSj79l1kSvIjSIL+Rh/HKxG4w3P/7rw=,tag:GvUUItPPLJKjSEAbBH1xKw==,type:str]
+    tls.key: ENC[AES256_GCM,data:9O0eO/2kXb/Oct3gKYvBuvO94En9FEBMsdBBxA==,iv:4efPOgPbKunEXy3/36q2FhTRqyM4kNzylQxHULo8MSM=,tag:dtQoxPupb0EEHtF67bPf/w==,type:str]
+sops:
+    kms: []
+    gcp_kms: []
+    azure_kv: []
+    hc_vault: []
+    age:
+        - recipient: age1nnmzxhd23kq4scqwalrdnts2qp2l4urq2x8vlhudc44624x62d7qvpsr4e
+          enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBPTDlpczR1Z0plOXRGcnpl
+            a3NBNlVZUldRZjFJNVhqcXRVeGc2QzdBZXlNCmQvaytaMVljMlNKdU50bXo3QTlj
+            RUZxUXpBeWo1R0xJUFNEc1lqYnl2YTgKLS0tIGxhRGorclQ5UUZTSmZsOUdzK25o
+            MGM4NkplY1p0Y2NUMGpQaVQwTGhva1EKBErsxL7cni9eozcpPSpeEFH4BOkkn4az
+            k+OgH0rN4jnSPivs/calXMEXuBcak77tR0vIZHoqFVAOOM4qO50uyw==
+            -----END AGE ENCRYPTED FILE-----
+    lastmodified: "2026-07-03T06:07:22Z"
+    mac: ENC[AES256_GCM,data:WwbWgBFRIV7D+uYskLsVKPSskC8Tq5xvN2Dczh3BTjfFv2+SpSBgVZ59sW81GrEiPbvfTnAtLth/PjHkgvanSphksFgNCuvSdEEdjigQnbUBf201ZAuWP+Ck9q6GX1D6Ue0O3nVzIzYYStu3cPd3hkP8b24YCLPKCb9bF+zDWzM=,iv:zc8OXJwWY1EABnDvRUZ3U4s+TqY3SqodJ4Mu9aTqGPY=,tag:IutybKMsA1PKGxdF1qtLcw==,type:str]
+    pgp: []
+    encrypted_regex: ^(data|stringData)$
+    version: 3.9.4

@@ -11,10 +11,10 @@
 # ConfigMap. The only differences between clusters are the values in that map
 # (domain, scheme, image registry/tag) — never the deployment approach.
 #
-# Paths are relative to each GitRepository's root:
+# Paths are relative to each OCIRepository artifact root:
 #   flux-system → the ctfd repo       (./deploy/*)
 #   controller  → the controller repo (./config/default)
-#   challenges  → the challenges repo  (./)
+# (challenges are script-loaded, not Flux-managed — see the note at the bottom.)
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata: { name: infrastructure, namespace: flux-system }
@@ -23,7 +23,7 @@ spec:
   path: ./deploy/infrastructure
   prune: true
   wait: true
-  sourceRef: { kind: GitRepository, name: flux-system }
+  sourceRef: { kind: OCIRepository, name: flux-system }
   postBuild:
     substituteFrom:
       - { kind: ConfigMap, name: cluster-config }
@@ -36,7 +36,7 @@ spec:
   interval: 30m
   path: ./deploy/apps/mariadb
   prune: true
-  sourceRef: { kind: GitRepository, name: flux-system }
+  sourceRef: { kind: OCIRepository, name: flux-system }
 ---
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
@@ -46,7 +46,7 @@ spec:
   interval: 30m
   path: ./deploy/apps/keydb
   prune: true
-  sourceRef: { kind: GitRepository, name: flux-system }
+  sourceRef: { kind: OCIRepository, name: flux-system }
 ---
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
@@ -56,7 +56,7 @@ spec:
   interval: 30m
   path: ./deploy/apps/ctfd
   prune: true
-  sourceRef: { kind: GitRepository, name: flux-system }
+  sourceRef: { kind: OCIRepository, name: flux-system }
   postBuild:
     substituteFrom:
       - { kind: ConfigMap, name: cluster-config }
@@ -69,7 +69,7 @@ spec:
   interval: 30m
   path: ./deploy/apps/gateway
   prune: true
-  sourceRef: { kind: GitRepository, name: flux-system }
+  sourceRef: { kind: OCIRepository, name: flux-system }
   postBuild:
     substituteFrom:
       - { kind: ConfigMap, name: cluster-config }
@@ -82,7 +82,7 @@ spec:
   interval: 30m
   path: ./deploy/apps/monitoring
   prune: true
-  sourceRef: { kind: GitRepository, name: flux-system }
+  sourceRef: { kind: OCIRepository, name: flux-system }
   postBuild:
     substituteFrom:
       - { kind: ConfigMap, name: cluster-config }
@@ -99,7 +99,7 @@ spec:
   interval: 30m
   path: ./config/default
   prune: true
-  sourceRef: { kind: GitRepository, name: controller }
+  sourceRef: { kind: OCIRepository, name: controller }
   images:
     - name: ctf.school/controller
       newName: "${CONTROLLER_IMAGE}"
@@ -118,9 +118,19 @@ spec:
             - { name: CTF_DOMAIN, value: "${CTF_DOMAIN}" }
             - { name: CTF_SCHEME, value: "${CTF_SCHEME}" }
             - { name: CTF_FLAG_FORMAT, value: "${CTF_FLAG_FORMAT}" }
+            - { name: GUARD_IMAGE, value: "${GUARD_IMAGE}" }   # guard sidecar image, per-cluster registry
+            # Split secrets (security review #1). CTF_SCHOOL_SECRET stays as the
+            # migration fallback both sides honour; the controller uses CTF_FLAG_SECRET
+            # to derive flags and CTF_JWT_SECRET as the guard sidecar's token key.
             - name: CTF_SCHOOL_SECRET
               valueFrom:
                 secretKeyRef: { name: ctf-school-secret, key: secret }
+            - name: CTF_FLAG_SECRET
+              valueFrom:
+                secretKeyRef: { name: ctf-school-secret, key: flag_secret }
+            - name: CTF_JWT_SECRET
+              valueFrom:
+                secretKeyRef: { name: ctf-school-secret, key: jwt_secret }
         - op: replace
           path: /spec/template/spec/containers/0/args
           value:
@@ -131,16 +141,6 @@ spec:
   postBuild:
     substituteFrom:
       - { kind: ConfigMap, name: cluster-config }
----
-# Challenges — from their own repo (LabSpace/LabService per challenge). No
-# platform vars here, so NO postBuild (challenge manifests may legitimately use
-# their own ${...}/$() shell syntax that must not be touched).
-apiVersion: kustomize.toolkit.fluxcd.io/v1
-kind: Kustomization
-metadata: { name: challenges, namespace: flux-system }
-spec:
-  dependsOn: [{ name: controller }]
-  interval: 10m
-  path: ./
-  prune: true
-  sourceRef: { kind: GitRepository, name: challenges }
+# NOTE: challenges are NOT reconciled by Flux — they're loaded on demand by a script
+# (the llm-ctf-2026 Makefile: `make crds` / `make deploy-local`), because challenge
+# sets come and go independently of the platform lifecycle.

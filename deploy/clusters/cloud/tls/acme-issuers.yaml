@@ -1,0 +1,46 @@
+# Let's Encrypt ACME ClusterIssuers (cloud only — kind never touches LE).
+#
+# WILDCARD REQUIRES DNS-01: the `*.<domain>` cert for per-session workspaces can only be
+# issued via a DNS-01 challenge (HTTP-01 cannot do wildcards). cert-manager creates the
+# `_acme-challenge.<domain>` TXT record automatically through the DNS provider API — so
+# even if you add the A/CNAME/wildcard records by hand, the ACME challenge records need a
+# provider TOKEN (below). The example is Cloudflare; swap the `dns01` solver for your
+# provider (route53 / cloudDNS / azuredns / …) — cert-manager supports them all.
+#
+# RATE-LIMIT SAFETY: start on `letsencrypt-staging` (its own generous limits, untrusted
+# cert but validates the whole flow). Only set TLS_ISSUER=letsencrypt-prod once staging
+# issues cleanly. One cert with SANs <domain> + *.<domain> = a single order, well within
+# LE's 50 certs/registered-domain/week and 5 duplicate/week limits.
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-staging
+spec:
+  acme:
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
+    email: ${ACME_EMAIL}
+    privateKeySecretRef:
+      name: letsencrypt-staging-account-key
+    solvers:
+      - dns01:
+          cloudflare:
+            apiTokenSecretRef:
+              name: cloudflare-api-token   # Secret in the cert-manager namespace
+              key: api-token
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: ${ACME_EMAIL}
+    privateKeySecretRef:
+      name: letsencrypt-prod-account-key
+    solvers:
+      - dns01:
+          cloudflare:
+            apiTokenSecretRef:
+              name: cloudflare-api-token
+              key: api-token

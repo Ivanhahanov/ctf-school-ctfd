@@ -1,98 +1,110 @@
-# deploy/ — GitOps (Flux)
+# deploy/ — IaC via Flux GitOps (OCI artifacts)
 
-The **entire platform is deployed by Flux** from this directory. Local (kind) and
-production (cloud) run the **same** flow and the **same** manifests — they differ
-only in three things: creating the cluster, building/loading dev images, and
-`/etc/hosts`. There is no `helm install` or `kubectl apply` of platform
-components anymore; Flux reconciles everything from Git.
+The **entire platform is reconciled by Flux** from **OCI artifacts** — not a Git
+clone. `make` (local) and CI (prod) publish the working tree of each repo as an OCI
+artifact to **Docker Hub**; Flux pulls and reconciles it. **Local and prod run the
+identical procedure, manifests, AND registry** (`docker.io/$DOCKERHUB_USER`) — they
+differ only in the cluster (kind vs cloud), how dev container images are delivered
+(kind-load vs pushed), the artifact tag, and `/etc/hosts`.
+
+One deploy/update procedure, everywhere:
+
+```
+1. publish   flux push artifact oci://$REGISTRY/<repo>:$TAG   (deploy / controller / challenges)
+2. secret    kubectl create secret sops-age --from-file=age.agekey=$KEY   (once)
+3. seed      apply the OCI sources + root Kustomization (envsubst $REGISTRY/$TAG)
+   → Flux decrypts the SOPS secret and reconciles everything.
+Update = re-publish + `flux reconcile`  (locally: `make deploy`).
+```
 
 ```
 deploy/
-  infrastructure/        operators as HelmReleases (cert-manager, envoy-gateway,
-                         mariadb-operator, victoria-metrics) + HelmRepositories.
-                         Versions are semver ranges → Flux tracks latest stable.
-  apps/                  the platform's Kubernetes manifests
-    mariadb/  keydb/     stateful layer
-    ctfd/                CTFd Deployment/Service/RBAC/secret
-    gateway/             GatewayClass / Gateway / HTTPRoutes / TLS / policies
-    monitoring/          values.yaml (Helm) + scrape/route/dashboards (kustomize)
+  infrastructure/   operators as HelmReleases + HelmRepositories (cert-manager,
+                    envoy-gateway, mariadb-operator, victoria-metrics).
+  apps/             platform manifests: mariadb, keydb, ctfd, gateway, monitoring.
   clusters/
-    base/   sources.yaml GitRepository for the controller & challenges repos
-            sync.yaml    Flux Kustomizations: infra → data/cache → ctfd → gateway
-                         → monitoring → controller → challenges (dependsOn-ordered),
-                         parameterised with ${VAR} + postBuild.substituteFrom.
-                         SHARED by every cluster — the single deployment mechanism.
-    kind/   cluster-config.yaml  local values (domain, local images, latest)
-            secrets.yaml         dev-only ctf-school-secret (prod: external)
-            kustomization.yaml   = ../base + the two files above
-    cloud/  cluster-config.yaml  prod values (domain, registry images, tag)
-            kustomization.yaml   = ../base + cluster-config (secret supplied externally)
+    base/sync.yaml         the SHARED Flux Kustomizations (infra → data/cache → ctfd
+                           → gateway → monitoring → controller → challenges), ${VAR}
+                           + postBuild.substituteFrom the cluster-config ConfigMap.
+                           sourceRef = OCIRepository (flux-system / controller / challenges).
+    kind/  flux-system.yaml   OCI sources + root Kustomization (${REGISTRY}/${TAG},
+                              applied imperatively by `make` — the bootstrap seed)
+           cluster-config.yaml   local values
+           secrets.yaml + secrets/   SOPS-encrypted ctf-school-secret (decrypted by Flux)
+    cloud/ flux-system.yaml / cluster-config.yaml / secrets.yaml + secrets/  (same, prod)
 ```
 
-Both clusters run the **identical** `clusters/base`. The ONLY thing that differs
-is each cluster's `cluster-config` ConfigMap — Flux substitutes its values into
-the `${VAR}` placeholders at reconcile time. Debugging on kind therefore exercises
-the exact prod mechanism (ConfigMap + postBuild), not a different code path.
+Both clusters run the **identical** `clusters/base`. The only per-cluster divergence
+is the `cluster-config` ConfigMap (domain, scheme, registry, tag) and the SOPS secret
+values. Debugging on kind exercises the exact prod mechanism (OCI + postBuild + SOPS).
 
-## Install (local = prod)
+## Install — three separated flows
+
+Registry defaults to the Docker Hub org `explabs`; override `DOCKERHUB_USER` if yours
+differs. `docker login` before any push.
 
 ```bash
-# local:
-cd ctfd && make all        # cluster + cilium + images + flux + hosts
+# ── DEV — local kind, build here ──────────────────────────────────────────────
+# Builds + KIND-LOADS images (NOT pushed); publishes the tiny manifest artifacts.
+cd ctfd && make dev
+flux get kustomizations --watch          # Flux reconciles async (MariaDB ~5 min)
+make hosts                               # once the Gateway has an IP (needs cloud-provider-kind)
+make dev-update                          # day-2: rebuild+reload images, re-publish, reconcile
 
-# prod: the SAME, minus kind/images/hosts —
-flux install
-kubectl apply -f deploy/clusters/cloud/flux-system.yaml
+# ── CI — build + PUSH everything (no cluster), at $(TAG) + :latest ────────────
+make ci TAG=v0.1.0                       # docker push images + flux push artifacts
+
+# ── DEMO — prod-style on kind: PULL pre-built :latest (run `make ci` first) ───
+make demo                                # kind + Flux pulls explabs/ctf-school-* :latest
+
+# ── PROD — Flux only (assumes `make ci TAG=<ver>` already pushed) ─────────────
+make prod TAG=v0.1.0                     # flux install + sops-age + seed (clusters/cloud)
 ```
 
-`make flux` does **`flux install` + `kubectl apply` of the read-only source** —
-**not** `flux bootstrap`. Flux only **reads** the repo, never writes to it, and
-holds **no broad PAT**. The repo URL lives in `clusters/<env>/flux-system.yaml`.
+The split is deliberate:
+- **`ci`** pushes container images (the heavy step) + artifacts, at `$(TAG)` **and** `:latest`.
+- **`dev`** never pushes images — it kind-loads them (fast local iteration) and only
+  publishes the small OCI manifest artifacts Flux needs.
+- **`demo`** builds nothing: it prepares a kind cluster and lets Flux **pull** the
+  pre-built `:latest` images + artifacts — the exact prod path, on a throwaway cluster.
+- **`prod`** builds/pushes nothing; points Flux at the versioned artifacts `ci` produced.
 
-### Public vs private repos
-- **Public** → nothing else to do; Flux clones over HTTPS, no credentials.
-- **Private** → give Flux a **read-only deploy key** per repo (least privilege,
-  no write, no account-wide token):
+No `flux bootstrap`, no git PAT: Flux only **pulls** two OCI artifacts from Docker Hub —
+`docker.io/explabs/ctf-school-deploy` (this repo) and
+`docker.io/explabs/ctf-school-controller-config` (the controller). Docker Hub repos are
+flat, so `ctf-school` is a repo-name PREFIX under `explabs`, not a nested path.
+Challenges are NOT Flux-managed — load them with the llm-ctf-2026 script (`make crds`).
+Private repos → `flux create secret oci`. Pin `TAG` in prod.
 
-  ```bash
-  # generates a keypair + prints the public key to add as a READ-ONLY deploy key
-  flux create secret git flux-system \
-    --url=ssh://git@github.com/Ivanhahanov/ctf-school-ctfd \
-    --namespace=flux-system
-  ```
-  Add the printed key under the repo's **Settings → Deploy keys** (leave “Allow
-  write access” **unchecked**), switch the GitRepository `url` to the `ssh://…`
-  form, and add `secretRef: { name: flux-system }`. Repeat per repo
-  (controller, challenges) — deploy keys are per-repo. For many private repos a
-  GitHub App or a fine-grained, read-only, repo-scoped PAT is the alternative.
+## Secrets — SOPS everywhere (one procedure)
 
-## ⚠️ Set these before going live (currently local placeholders)
+Both clusters keep the `ctf-school-secret` **SOPS-encrypted in git**
+(`clusters/<env>/secrets/secrets.enc.yaml`) and Flux decrypts it in-cluster. The ONLY
+imperative secret step — identical local and prod — is loading the **age private key**
+as the `sops-age` Secret (`make secret`, or the `kubectl create secret` above). The key
+is never committed (`.sops-age-key.txt` / `.sops.yaml` recipient is the public half).
+Split keys: `flag_secret` (flag HMAC), `jwt_secret` (workspace tokens) — see the top-level
+`SECURITY-REVIEW.md`.
 
-- **`clusters/base/sources.yaml`** — the `controller` and `challenges`
-  `GitRepository` URLs. Confirm they point at your real repos (shared by both
-  clusters).
-- **`clusters/cloud/cluster-config.yaml`** — `CTF_DOMAIN`, `CONTROLLER_IMAGE`,
-  `CTFD_IMAGE`, `IMAGE_TAG` are `your-org/...`/`ctf.example.com` placeholders.
-  This ConfigMap is the one and only place prod values are set.
-  - *Recommended:* host the three repos (ctfd, ctf-school-controller,
-    ctf-school-challenges) on GitHub; bootstrap Flux against `ctfd`.
-- **Images** — `controller`, `workspace-guard`, `ctfd-lab`, `ctf-desktop` are
-  built and `kind load`ed locally (`make images`, sibling paths in the Makefile).
-  **For prod, push them to a registry** (GHCR or your cloud's registry) and set
-  the image refs in the manifests / cluster overlay.
-  - *Recommended:* GHCR (`ghcr.io/<org>/...`) with image tags pinned per release;
-    use Flux's image-automation to bump them, or set `IMAGE_TAG` in the cloud
-    `cluster-config`.
+## ⚠️ Before going live
+
+- **`clusters/cloud/flux-system.yaml` + `cluster-config.yaml`** — set `REGISTRY` to your
+  registry, pin `TAG` to an immutable version/digest, keep `OCI_INSECURE=false`, and set
+  `CTF_DOMAIN` / image repos. Consider `spec.verify` (cosign) on the OCIRepositories.
+- **age key** — generate a prod age key, load it as `sops-age`, and
+  `sops updatekeys` the cloud secret to that recipient. Guard the private key.
+- **Images** — prod pushes `controller` / `workspace-guard` / `ctfd` / `desktop` /
+  challenge images to the registry (pinned tags); locally they're `kind load`ed by
+  `make images`.
 
 ## CNI exception
 
-Cilium is **not** Flux-managed: it is the CNI everything depends on, so it is
-installed at bootstrap (`make cilium`, before Flux) — see `kind.yaml`
-(`disableDefaultCNI: true`). It enforces the per-session lab `NetworkPolicy`
-the controller creates (team/namespace isolation).
+Cilium is **not** Flux-managed — it's the CNI everything depends on, installed at
+bootstrap (`make cilium`, before Flux; `kind.yaml` sets `disableDefaultCNI: true`). It
+enforces the per-session lab `NetworkPolicy` (team/namespace isolation).
 
 ## Versions
 
-Operator chart versions in `infrastructure/operators.yaml` are major-bounded
-semver ranges (`>=x.y.0 <X+1.0.0`), so Flux pulls the **latest stable** within
-the major automatically. For stricter prod control, pin exact versions + Renovate.
+Operator chart versions in `infrastructure/operators.yaml` are major-bounded semver
+ranges, so Flux pulls the latest stable within the major. For stricter prod control,
+pin exact versions + Renovate, and pin the OCI artifact `TAG` per release.

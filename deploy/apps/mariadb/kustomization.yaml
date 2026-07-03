@@ -3,3 +3,4 @@ kind: Kustomization
 resources:
   - secret.yaml
   - mariadb.yaml
+  - networkpolicy.yaml   # ingress: only CTFd + Galera peers + operator + monitoring

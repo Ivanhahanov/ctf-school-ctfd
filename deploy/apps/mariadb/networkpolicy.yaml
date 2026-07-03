@@ -1,0 +1,35 @@
+# Lock the MariaDB (Galera) cluster down: only CTFd (SQL), the Galera peers (cluster
+# traffic), the MariaDB operator (agent management), and monitoring (metrics scrape)
+# may reach it. Selecting the pods with an Ingress policy makes them default-deny.
+# Egress is left open. kubelet host health checks are allowed by Cilium regardless.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: mariadb-ingress
+  namespace: ctfd
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/instance: ctfd-db
+  policyTypes: [Ingress]
+  ingress:
+    # Galera peers ↔ each other — ALL ports (3306 + 4567/4568/4444 cluster + agent).
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/instance: ctfd-db
+    # CTFd → SQL only.
+    - from:
+        - podSelector:
+            matchLabels:
+              app: ctfd
+      ports:
+        - { protocol: TCP, port: 3306 }
+    # MariaDB operator (agent 5555/5566 management) + monitoring (metrics scrape).
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: mariadb-operator
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring

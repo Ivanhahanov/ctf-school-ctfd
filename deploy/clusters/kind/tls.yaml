@@ -1,0 +1,19 @@
+# Sources the kind ctfd-tls Secret (self-signed) AFTER cert-manager is up. Per-cluster
+# (not in the shared gateway) so cloud can choose Let's Encrypt or a manual cert instead.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: tls
+  namespace: flux-system
+spec:
+  interval: 30m
+  path: ./deploy/clusters/kind/tls
+  prune: true
+  dependsOn:
+    - { name: infrastructure }
+  sourceRef:
+    kind: OCIRepository
+    name: flux-system
+  postBuild:
+    substituteFrom:
+      - { kind: ConfigMap, name: cluster-config }

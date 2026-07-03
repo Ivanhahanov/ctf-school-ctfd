@@ -64,14 +64,27 @@ spec:
               value: "/var/log/CTFd"
             - name: UPLOAD_PROVIDER
               value: "filesystem"
-            # HMAC key for flag derivation — from the SAME `ctf-school-secret`
-            # the controller uses (so flags match). Dev value in kind comes from
-            # clusters/kind/secrets.yaml; prod supplies it externally.
+            # Split secrets (security review #1) from the SAME `ctf-school-secret` the
+            # controller/guard use, so flags AND workspace tokens match. CTF_SCHOOL_SECRET
+            # stays as the migration fallback both sides honour. Dev values in kind come
+            # from clusters/kind/secrets/secrets.yaml; prod supplies them via SOPS.
             - name: CTF_SCHOOL_SECRET
               valueFrom:
                 secretKeyRef:
                   name: ctf-school-secret
                   key: secret
+            # HMAC key for flag derivation — must equal the controller's CTF_FLAG_SECRET.
+            - name: CTF_FLAG_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: ctf-school-secret
+                  key: flag_secret
+            # HS256 key for workspace tokens — must equal the guard's CTF_JWT_SECRET.
+            - name: CTF_JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: ctf-school-secret
+                  key: jwt_secret
             # Bearer token that guards the /lab-metrics anti-cheat exporter.
             - name: CTF_METRICS_TOKEN
               valueFrom:

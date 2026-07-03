@@ -1,23 +1,38 @@
-# Root Flux source for the kind cluster — applied once by `make flux` (after
-# `flux install`). NO `flux bootstrap`: Flux only READS this repo, holds no broad
-# PAT, and never writes back.
+# Root Flux sources for the kind cluster — applied by `make` (which fills ${REGISTRY},
+# ${TAG} and ${OCI_INSECURE} via sed). The SAME artifacts on the SAME registry (Docker
+# Hub, docker.io/$DOCKERHUB_USER) drive prod (clusters/cloud) — only the tag differs. No
+# `flux bootstrap`, no git PAT: Flux reconciles OCI artifacts that `make`/CI push from
+# the working tree.
 #
-# Public repo  → no credentials needed (as below).
-# Private repo → add `secretRef: { name: flux-system }` to the GitRepository and
-#   create a READ-ONLY deploy key:  see deploy/README.md.
+# Two OCI artifacts under the ctf-school namespace (challenges are script-loaded):
+#   flux-system → artifact `deploy`           (this ctfd repo's deploy/)
+#   controller  → artifact `controller-config` (the controller repo's config/)
 apiVersion: source.toolkit.fluxcd.io/v1
-kind: GitRepository
+kind: OCIRepository
 metadata:
   name: flux-system
   namespace: flux-system
 spec:
-  interval: 5m
-  url: https://github.com/Ivanhahanov/ctf-school-ctfd
+  interval: 1m
+  url: oci://${REGISTRY}/ctf-school-deploy
   ref:
-    branch: main
+    tag: "${TAG}"
+  insecure: ${OCI_INSECURE}   # false for Docker Hub (HTTPS); true only for a plain-HTTP registry
 ---
-# Reconciles deploy/clusters/kind (which adds the controller/challenges sources
-# and all the platform Kustomizations).
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: OCIRepository
+metadata:
+  name: controller
+  namespace: flux-system
+spec:
+  interval: 1m
+  url: oci://${REGISTRY}/ctf-school-controller-config
+  ref:
+    tag: "${TAG}"
+  insecure: ${OCI_INSECURE}
+---
+# Reconciles deploy/clusters/kind (adds cluster-config, the SOPS secret Kustomization,
+# and — via ../base — every platform Kustomization).
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
@@ -28,5 +43,5 @@ spec:
   path: ./deploy/clusters/kind
   prune: true
   sourceRef:
-    kind: GitRepository
+    kind: OCIRepository
     name: flux-system

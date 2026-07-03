@@ -1,0 +1,10 @@
+# Excluded from the Flux OCI artifact (`flux push artifact`). Same syntax as .gitignore.
+# CRITICAL: never publish the SOPS age private key into the artifact.
+.sops-age-key.txt
+*.agekey
+
+# Local ops binaries and caches — not part of the deployment.
+/bin/
+**/__pycache__/
+*.pyc
+.git/

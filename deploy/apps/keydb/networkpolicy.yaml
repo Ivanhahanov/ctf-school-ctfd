@@ -1,0 +1,28 @@
+# Lock KeyDB down: it holds CTFd's session/cache store and has NO password, so only
+# CTFd (and the KeyDB replicas themselves) may reach it. Selecting the pods with an
+# Ingress policy makes them default-deny — everything not listed is dropped. Egress is
+# left open. KeyDB's health probes are `exec` (in-container), so policy doesn't affect
+# them; kubelet host checks are allowed by Cilium regardless.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: keydb-ingress
+  namespace: ctfd
+spec:
+  podSelector:
+    matchLabels:
+      app: keydb
+  policyTypes: [Ingress]
+  ingress:
+    # CTFd → KeyDB (the only client)
+    - from:
+        - podSelector:
+            matchLabels:
+              app: ctfd
+      ports:
+        - { protocol: TCP, port: 6379 }
+    # KeyDB replica ↔ replica (StatefulSet peers replicate)
+    - from:
+        - podSelector:
+            matchLabels:
+              app: keydb

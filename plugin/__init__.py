@@ -4,11 +4,15 @@ CTFd Lab Manager Plugin
 Challenge type «Lab» = Dynamic scoring + Kubernetes LabSession.
 
 Flag derivation mirrors the controller's buildEnvVars (case "hmac"):
-    CTF_FLAG_FORMAT % base64url(HMAC-SHA256(CTF_SCHOOL_SECRET, flagService+userId))[:24]
+    CTF_FLAG_FORMAT % base64url(HMAC-SHA256(CTF_FLAG_SECRET, flagService+userId))[:24]
 
-Both CTF_SCHOOL_SECRET (the HMAC key) and CTF_FLAG_FORMAT (the wrapper, e.g.
-"CTF{%s}") are platform-wide env vars shared with the controller — set once,
-never per-challenge — so the two sides can never drift.
+Secrets are split by purpose (security review finding #1):
+  - CTF_FLAG_SECRET — HMAC key for flags, shared with the controller.
+  - CTF_JWT_SECRET  — HS256 key for workspace tokens, shared with the guard.
+Both fall back to the legacy shared CTF_SCHOOL_SECRET during migration (identically
+on every side, so nothing drifts). CTF_FLAG_FORMAT (the wrapper, e.g. "CTF{%s}") is
+likewise a platform-wide env var shared with the controller — set once, never
+per-challenge.
 """
 
 import base64
@@ -167,8 +171,25 @@ def _b64url(raw: bytes) -> str:
     return base64.urlsafe_b64encode(raw).rstrip(b"=").decode()
 
 
+def _flag_secret() -> bytes:
+    """HMAC key for flag derivation — must match the controller's flagSecret().
+    Distinct from the JWT key (security finding #1). Falls back to the legacy shared
+    CTF_SCHOOL_SECRET during migration, identically to the controller, so flags never
+    drift while a cluster is still on the single secret."""
+    return (os.environ.get("CTF_FLAG_SECRET")
+            or os.environ.get("CTF_SCHOOL_SECRET")
+            or "ctf-school-secret-key").encode()
+
+
+def _jwt_secret() -> bytes:
+    """HS256 key for workspace tokens — must match the guard's jwtSecret()."""
+    return (os.environ.get("CTF_JWT_SECRET")
+            or os.environ.get("CTF_SCHOOL_SECRET")
+            or "ctf-school-secret-key").encode()
+
+
 def _make_workspace_token(team: str) -> str:
-    secret = os.environ.get("CTF_SCHOOL_SECRET", "ctf-school-secret-key").encode()
+    secret = _jwt_secret()
     header = _b64url(json.dumps({"alg": "HS256", "typ": "JWT"}, separators=(",", ":")).encode())
     payload = _b64url(json.dumps(
         {"team": team, "exp": int(time.time()) + WORKSPACE_TOKEN_TTL},
@@ -192,10 +213,10 @@ def _flag_format() -> str:
 def _derive_flag(flag_service: str, salt: str) -> str:
     """
     Mirrors the controller's hash() + flagFormat():
-        CTF_FLAG_FORMAT % base64url(HMAC-SHA256(CTF_SCHOOL_SECRET, flag_service+salt))[:FLAG_TOKEN_LEN]
+        CTF_FLAG_FORMAT % base64url(HMAC-SHA256(CTF_FLAG_SECRET, flag_service+salt))[:FLAG_TOKEN_LEN]
     base64url = mixed-case alphanumeric (+ -_), 24 chars ≈ 2^144 entropy.
     """
-    secret = os.environ.get("CTF_SCHOOL_SECRET", "ctf-school-secret-key").encode()
+    secret = _flag_secret()
     digest = _hmac.new(secret, (flag_service + salt).encode(), hashlib.sha256).digest()
     token = base64.urlsafe_b64encode(digest).rstrip(b"=").decode()[:FLAG_TOKEN_LEN]
     return _flag_format() % token
@@ -672,23 +693,13 @@ def lab_reload(challenge_id):
     return jsonify({"success": False, "message": body.get("message", "Error")}), 500
 
 
-@lab_api.route("/api/v1/lab/<int:challenge_id>/flag")
-@authed_only
-def lab_flag_hint(challenge_id):
-    """
-    Returns the flag once the lab is Running — frontend can pre-fill the submission field.
-    In team mode all team members get the same flag (same salt → same HMAC).
-    """
-    salt    = _current_salt()
-    payload = _status_payload(salt, challenge_id)
-    if not payload["running"]:
-        return jsonify({"success": False, "message": "Lab is not running"}), 400
-
-    c = LabChallenge.query.filter_by(id=challenge_id).first()
-    if not c or not c.flag_service:
-        return jsonify({"success": False, "message": "Dynamic flag not configured"}), 404
-
-    return jsonify({"success": True, "flag": _derive_flag(c.flag_service, salt)})
+# SECURITY: there is deliberately NO endpoint that returns a challenge's flag.
+# A previous /api/v1/lab/<id>/flag "pre-fill" route handed the derived flag to any
+# authenticated player as soon as their lab was Running — i.e. every lab challenge
+# could be scored without being solved (Start Lab → GET flag → Submit). It was
+# removed. The flag is only ever obtained by reaching the challenge service inside
+# the workspace and submitting it through the normal /attempt path. Do not re-add a
+# server route that discloses _derive_flag() output to players.
 
 
 # ── Anti-cheat metrics exporter ────────────────────────────────────────────────
@@ -825,7 +836,24 @@ def lab_metrics():
 
 # ── Plugin entry point ────────────────────────────────────────────────────────
 
+def _validate_secrets() -> None:
+    """Fail closed at plugin load (security review #1/#2 follow-up): refuse to start if
+    the flag or JWT secret is unset or the built-in dev default, so a misconfigured
+    deployment can't validate flags / mint tokens with a source-code-known key. Set
+    CTF_ALLOW_DEV_SECRETS=true to permit the dev default for local dev."""
+    if os.environ.get("CTF_ALLOW_DEV_SECRETS") == "true":
+        return
+    dev = b"ctf-school-secret-key"
+    for name, val in (("CTF_FLAG_SECRET", _flag_secret()), ("CTF_JWT_SECRET", _jwt_secret())):
+        if not val or val == dev:
+            raise RuntimeError(
+                f"{name} is unset or the built-in dev default; set a real secret "
+                "(or a real CTF_SCHOOL_SECRET), or CTF_ALLOW_DEV_SECRETS=true for local dev"
+            )
+
+
 def load(app):
+    _validate_secrets()
     with app.app_context():
         db.create_all()
 

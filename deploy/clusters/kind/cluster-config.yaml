@@ -8,7 +8,10 @@ data:
   CTF_DOMAIN: "ctf.school.local"
   CTF_SCHEME: "https"
   CTF_FLAG_FORMAT: "CTF{%s}"
-  # Local kind-loaded images (no registry); `make images` builds these tags.
-  CONTROLLER_IMAGE: "ctf-school-controller"
-  CTFD_IMAGE: "ctfd-lab"
+  TLS_ISSUER: "selfsigned"   # local: self-signed wildcard (no Let's Encrypt)
+  # Same image NAMES as prod (explabs/ctf-school-*), just kind-loaded locally instead
+  # of pulled — so what you see is consistent everywhere. `make images` builds+loads them.
+  CONTROLLER_IMAGE: "explabs/ctf-school-controller"
+  CTFD_IMAGE: "explabs/ctf-school-ctfd"
+  GUARD_IMAGE: "explabs/ctf-school-guard:latest"   # full ref (the controller injects it verbatim)
   IMAGE_TAG: "latest"

@@ -1,0 +1,25 @@
+# kind TLS: a self-signed wildcard cert so the secure-cookie workspace-auth flow runs
+# over real TLS locally. Browsers warn (untrusted) — fine for dev. ${CTF_DOMAIN} is
+# filled by the `tls` Flux Kustomization's postBuild.
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: selfsigned
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: ctfd-tls
+  namespace: ctfd
+spec:
+  secretName: ctfd-tls
+  privateKey:
+    rotationPolicy: Always
+  dnsNames:
+    - ${CTF_DOMAIN}
+    - "*.${CTF_DOMAIN}"
+  issuerRef:
+    name: selfsigned
+    kind: ClusterIssuer

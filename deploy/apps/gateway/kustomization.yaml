@@ -1,7 +1,9 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  - tls.yaml
+  # TLS (the ctfd-tls Secret) is sourced PER-CLUSTER — kind self-signs it, cloud either
+  # uses Let's Encrypt (Cloudflare DNS-01) or a manually-supplied cert. See
+  # clusters/<env>/tls/. The Gateway listeners here just reference `ctfd-tls` by name.
   - envoyproxy.yaml
   - gatewayclass.yaml
   - gateway.yaml

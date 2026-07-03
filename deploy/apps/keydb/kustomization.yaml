@@ -4,3 +4,4 @@ resources:
   - service-headless.yaml
   - service.yaml
   - statefulset.yaml
+  - networkpolicy.yaml   # ingress: only CTFd + KeyDB peers (unauthenticated store)

@@ -20,12 +20,15 @@ before `secrets` reconciles. Supplied out-of-band (below) — never committed.
 ## Bootstrap
 
 ```sh
-# 1. CI (anywhere with docker login) — build + push images + artifacts for a version:
-make -C ctfd ci TAG=v0.1.0
+# 1. CI (anywhere with docker login) — build + push images + artifacts (:latest):
+make -C ctfd ci
 
 # 2. On the cloud cluster — load the age key ONCE, then deploy with Flux only:
 kubectl -n flux-system create secret generic sops-age --from-file=age.agekey=$AGE_KEY_FILE
-make -C ctfd prod TAG=v0.1.0            # flux install + secret + seed (clusters/cloud)
+make -C ctfd prod TAG=latest            # flux install + secret + seed (clusters/cloud)
+# Cloud's cluster-config pins IMAGE_TAG=latest, so TAG here selects the manifest
+# artifact AND the images together. Re-push? force it: kubectl -n ctfd rollout restart
+# deploy/ctfd (+ the controller). For an immutable release: use TAG=v0.1.1 + IMAGE_TAG=v0.1.1.
 ```
 
 `make prod` runs `flux install` + `secret` + `seed` against `clusters/cloud`; `secrets`

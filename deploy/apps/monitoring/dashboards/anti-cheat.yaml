@@ -1,0 +1,196 @@
+# CTF School — Anti-Cheat: the single, durable command-centre dashboard.
+#
+# Combines every signal into one unambiguous view:
+#   • AI behaviour   (workspace-guard RFB tap): teleport clicks, robotic typing,
+#                     no idle jitter, automation fingerprint → a risk score.
+#   • Submission     (CTFd lab plugin): foreign-flag submits (flag sharing, made
+#                     unambiguous by per-team HMAC flags) and scripted API submits.
+#   • Engagement     (guard): hands-on seconds vs a correct solve → "solved elsewhere".
+#   • Manual review  (VictoriaLogs): reconstructed keystrokes/clipboard + signed
+#                     tamper-evident evidence.
+#
+# DURABLE: guard metrics are per-session gauges that vanish with the pod, so every
+# query uses max_over_time(metric[$__range]) — open it mid- or post-event and the
+# peaks are still there. Team names (any string, spaces/unicode) are matched with
+# ${team:regex} so they can't break the query. Report-only — nothing is blocked.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dashboard-anti-cheat
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  anti-cheat.json: |
+    {
+      "title": "CTF School — Anti-Cheat",
+      "uid": "ctf-anti-cheat",
+      "schemaVersion": 39,
+      "tags": ["ctf-school", "security", "anti-cheat"],
+      "time": {"from": "now-7d", "to": "now"},
+      "refresh": "1m",
+      "templating": {"list": [
+        {"name": "datasource", "type": "datasource", "query": "prometheus", "current": {}, "hide": 0},
+        {"name": "logs", "type": "datasource", "query": "victoriametrics-logs-datasource", "current": {}, "hide": 0},
+        {"name": "risk", "type": "custom", "label": "Risk ≥", "query": "0.3,0.5,0.7",
+         "current": {"text": "0.5", "value": "0.5"}, "options": [
+           {"text": "0.3", "value": "0.3", "selected": false},
+           {"text": "0.5", "value": "0.5", "selected": true},
+           {"text": "0.7", "value": "0.7", "selected": false}]},
+        {"name": "team", "type": "query", "label": "Team",
+         "datasource": {"type": "prometheus", "uid": "${datasource}"},
+         "query": "label_values(workspace_guard_risk_score, owner)", "includeAll": true, "multi": true,
+         "current": {"text": "All", "value": "$__all"}}
+      ]},
+      "panels": [
+        {"id": 1, "type": "row", "title": "Verdict at a glance", "gridPos": {"h": 1, "w": 24, "x": 0, "y": 0}},
+
+        {"id": 2, "type": "stat", "title": "Teams flagged", "gridPos": {"h": 4, "w": 5, "x": 0, "y": 1},
+         "description": "Distinct teams with an AI-behaviour risk ≥ $risk, OR a foreign-flag submit, OR a scripted API submit.",
+         "fieldConfig": {"defaults": {"thresholds": {"steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}}},
+         "datasource": {"type": "prometheus", "uid": "${datasource}"},
+         "targets": [{"expr": "count(group by (owner) ((max by (owner)(max_over_time(workspace_guard_risk_score{owner=~\"${team:regex}\"}[$__range])) >= $risk) or (max by (owner)(max_over_time(ctf_foreign_flag_submits{owner=~\"${team:regex}\"}[$__range])) > 0) or (max by (owner)(max_over_time(ctf_submit_via_api{owner=~\"${team:regex}\"}[$__range])) > 0))) or vector(0)", "datasource": {"type": "prometheus", "uid": "${datasource}"}}]},
+
+        {"id": 3, "type": "stat", "title": "Worst AI risk", "gridPos": {"h": 4, "w": 5, "x": 5, "y": 1},
+         "fieldConfig": {"defaults": {"min": 0, "max": 1, "decimals": 2, "thresholds": {"steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 0.3}, {"color": "orange", "value": 0.5}, {"color": "red", "value": 0.7}]}}},
+         "datasource": {"type": "prometheus", "uid": "${datasource}"},
+         "targets": [{"expr": "max(max_over_time(workspace_guard_risk_score{owner=~\"${team:regex}\"}[$__range])) or vector(0)", "datasource": {"type": "prometheus", "uid": "${datasource}"}}]},
+
+        {"id": 4, "type": "stat", "title": "Flag-sharing", "gridPos": {"h": 4, "w": 5, "x": 10, "y": 1},
+         "description": "Teams that submitted ANOTHER team's flag (per-team HMAC flags make this unambiguous).",
+         "fieldConfig": {"defaults": {"thresholds": {"steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}}},
+         "datasource": {"type": "prometheus", "uid": "${datasource}"},
+         "targets": [{"expr": "count(group by (owner) (max by (owner)(max_over_time(ctf_foreign_flag_submits{owner=~\"${team:regex}\"}[$__range])) > 0)) or vector(0)", "datasource": {"type": "prometheus", "uid": "${datasource}"}}]},
+
+        {"id": 5, "type": "stat", "title": "Scripted (API) submits", "gridPos": {"h": 4, "w": 4, "x": 15, "y": 1},
+         "description": "Teams that submitted a flag via the API instead of the web UI.",
+         "fieldConfig": {"defaults": {"thresholds": {"steps": [{"color": "green", "value": null}, {"color": "orange", "value": 1}]}}},
+         "datasource": {"type": "prometheus", "uid": "${datasource}"},
+         "targets": [{"expr": "count(group by (owner) (max by (owner)(max_over_time(ctf_submit_via_api{owner=~\"${team:regex}\"}[$__range])) > 0)) or vector(0)", "datasource": {"type": "prometheus", "uid": "${datasource}"}}]},
+
+        {"id": 6, "type": "stat", "title": "Solved, <2 min hands-on", "gridPos": {"h": 4, "w": 5, "x": 19, "y": 1},
+         "description": "Correct flag with under 2 minutes of real interaction in the guarded workspace — likely solved elsewhere.",
+         "fieldConfig": {"defaults": {"thresholds": {"steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}}},
+         "datasource": {"type": "prometheus", "uid": "${datasource}"},
+         "targets": [{"expr": "count((max_over_time(ctf_solved{owner=~\"${team:regex}\"}[$__range]) == 1) and on (team, labspace) (sum by (team, labspace) (increase(workspace_guard_active_seconds_total[$__range])) < 120)) or vector(0)", "datasource": {"type": "prometheus", "uid": "${datasource}"}}]},
+
+        {"id": 7, "type": "row", "title": "Suspicion leaderboard — one row per team + challenge", "gridPos": {"h": 1, "w": 24, "x": 0, "y": 5}},
+
+        {"id": 8, "type": "table", "title": "Ranked by risk", "gridPos": {"h": 13, "w": 24, "x": 0, "y": 6},
+         "description": "AI-behaviour detectors (Teleport / Typing / Jitter) fire on how the flag was OBTAINED; Flag-share / API on how it was SUBMITTED; Hands-on = real seconds in the workspace. Sort by Risk. Green = clean.",
+         "datasource": {"type": "prometheus", "uid": "${datasource}"},
+         "targets": [
+           {"refId": "A", "format": "table", "instant": true, "expr": "max by (owner,labspace) (max_over_time(workspace_guard_risk_score{owner=~\"${team:regex}\"}[$__range]))", "datasource": {"type": "prometheus", "uid": "${datasource}"}},
+           {"refId": "B", "format": "table", "instant": true, "expr": "max by (owner,labspace) (max_over_time(workspace_guard_risk_teleport{owner=~\"${team:regex}\"}[$__range]))", "datasource": {"type": "prometheus", "uid": "${datasource}"}},
+           {"refId": "C", "format": "table", "instant": true, "expr": "max by (owner,labspace) (max_over_time(workspace_guard_risk_typing{owner=~\"${team:regex}\"}[$__range]))", "datasource": {"type": "prometheus", "uid": "${datasource}"}},
+           {"refId": "D", "format": "table", "instant": true, "expr": "max by (owner,labspace) (max_over_time(workspace_guard_risk_jitter{owner=~\"${team:regex}\"}[$__range]))", "datasource": {"type": "prometheus", "uid": "${datasource}"}},
+           {"refId": "E", "format": "table", "instant": true, "expr": "max by (owner,labspace) (max_over_time(ctf_foreign_flag_submits{owner=~\"${team:regex}\"}[$__range]))", "datasource": {"type": "prometheus", "uid": "${datasource}"}},
+           {"refId": "F", "format": "table", "instant": true, "expr": "max by (owner,labspace) (max_over_time(ctf_submit_via_api{owner=~\"${team:regex}\"}[$__range]))", "datasource": {"type": "prometheus", "uid": "${datasource}"}},
+           {"refId": "G", "format": "table", "instant": true, "expr": "sum by (owner,labspace) (increase(workspace_guard_active_seconds_total{owner=~\"${team:regex}\"}[$__range]))", "datasource": {"type": "prometheus", "uid": "${datasource}"}},
+           {"refId": "H", "format": "table", "instant": true, "expr": "max by (owner,labspace) (max_over_time(ctf_solved{owner=~\"${team:regex}\"}[$__range]))", "datasource": {"type": "prometheus", "uid": "${datasource}"}}
+         ],
+         "transformations": [
+           {"id": "merge", "options": {}},
+           {"id": "organize", "options": {"excludeByName": {"Time": true, "__name__": true, "team": true, "uid": true, "sid": true},
+             "renameByName": {"owner": "Team", "labspace": "Challenge",
+               "Value #A": "Risk", "Value #B": "Teleport", "Value #C": "Typing", "Value #D": "Jitter",
+               "Value #E": "Flag-share", "Value #F": "API", "Value #G": "Hands-on s", "Value #H": "Solved"}}}
+         ],
+         "fieldConfig": {"defaults": {"custom": {"align": "center"}},
+           "overrides": [
+             {"matcher": {"id": "byName", "options": "Team"}, "properties": [{"id": "custom.align", "value": "left"}, {"id": "custom.width", "value": 200}]},
+             {"matcher": {"id": "byName", "options": "Risk"}, "properties": [
+               {"id": "custom.cellOptions", "value": {"type": "color-background"}},
+               {"id": "decimals", "value": 2},
+               {"id": "thresholds", "value": {"steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 0.3}, {"color": "orange", "value": 0.5}, {"color": "red", "value": 0.7}]}}]},
+             {"matcher": {"id": "byRegexp", "options": "Teleport|Typing|Jitter"}, "properties": [
+               {"id": "custom.cellOptions", "value": {"type": "color-background"}},
+               {"id": "custom.width", "value": 90},
+               {"id": "mappings", "value": [{"type": "value", "options": {"0": {"text": "—", "color": "green"}, "1": {"text": "FIRED", "color": "red"}}}]}]},
+             {"matcher": {"id": "byRegexp", "options": "Flag-share|API"}, "properties": [
+               {"id": "custom.cellOptions", "value": {"type": "color-background"}},
+               {"id": "custom.width", "value": 100},
+               {"id": "thresholds", "value": {"steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}}]},
+             {"matcher": {"id": "byName", "options": "Solved"}, "properties": [
+               {"id": "custom.width", "value": 80},
+               {"id": "mappings", "value": [{"type": "value", "options": {"0": {"text": "—"}, "1": {"text": "✓", "color": "text"}}}]}]},
+             {"matcher": {"id": "byName", "options": "Hands-on s"}, "properties": [{"id": "unit", "value": "s"}, {"id": "decimals", "value": 0}, {"id": "custom.width", "value": 100}]}
+           ]},
+         "options": {"sortBy": [{"displayName": "Risk", "desc": true}], "cellHeight": "sm", "footer": {"show": false}}},
+
+        {"id": 9, "type": "row", "title": "Why — detector breakdown", "gridPos": {"h": 1, "w": 24, "x": 0, "y": 19}},
+
+        {"id": 10, "type": "bargauge", "title": "AI detectors — sessions where each fired", "gridPos": {"h": 7, "w": 12, "x": 0, "y": 20},
+         "options": {"orientation": "horizontal", "displayMode": "gradient"},
+         "fieldConfig": {"defaults": {"color": {"mode": "continuous-GrYlRd"}}},
+         "datasource": {"type": "prometheus", "uid": "${datasource}"},
+         "targets": [
+           {"expr": "count(max by (owner,uid,labspace)(max_over_time(workspace_guard_risk_teleport{owner=~\"${team:regex}\"}[$__range]))==1) or vector(0)", "legendFormat": "Teleport-clicks", "datasource": {"type": "prometheus", "uid": "${datasource}"}},
+           {"expr": "count(max by (owner,uid,labspace)(max_over_time(workspace_guard_risk_typing{owner=~\"${team:regex}\"}[$__range]))==1) or vector(0)", "legendFormat": "Robotic-typing", "datasource": {"type": "prometheus", "uid": "${datasource}"}},
+           {"expr": "count(max by (owner,uid,labspace)(max_over_time(workspace_guard_risk_jitter{owner=~\"${team:regex}\"}[$__range]))==1) or vector(0)", "legendFormat": "No-idle-jitter", "datasource": {"type": "prometheus", "uid": "${datasource}"}},
+           {"expr": "count(max by (owner,uid,labspace)(max_over_time(workspace_guard_risk_fingerprint{owner=~\"${team:regex}\"}[$__range]))==1) or vector(0)", "legendFormat": "Automation-fingerprint", "datasource": {"type": "prometheus", "uid": "${datasource}"}}
+         ]},
+
+        {"id": 11, "type": "timeseries", "title": "AI risk over time (peak per team/challenge)", "gridPos": {"h": 7, "w": 12, "x": 12, "y": 20},
+         "fieldConfig": {"defaults": {"min": 0, "max": 1, "custom": {"drawStyle": "line", "lineWidth": 2, "fillOpacity": 10, "spanNulls": true}, "thresholds": {"steps": [{"color": "green", "value": null}, {"color": "red", "value": 0.5}]}}},
+         "datasource": {"type": "prometheus", "uid": "${datasource}"},
+         "targets": [{"expr": "max by (owner, labspace) (workspace_guard_risk_score{owner=~\"${team:regex}\"})", "legendFormat": "{{owner}} / {{labspace}}", "datasource": {"type": "prometheus", "uid": "${datasource}"}}]},
+
+        {"id": 12, "type": "row", "title": "Manual review (VictoriaLogs) — read what they did, prove it", "gridPos": {"h": 1, "w": 24, "x": 0, "y": 27}},
+
+        {"id": 13, "type": "table", "title": "Keystrokes — full transcript (one row per session)", "gridPos": {"h": 11, "w": 13, "x": 0, "y": 28},
+         "description": "The complete cumulative transcript per session — de-duplicated to the latest row, so no repeats. Filter by Team. ⏎ = Enter, ⌫ = Backspace.",
+         "datasource": {"type": "victoriametrics-logs-datasource", "uid": "${logs}"},
+         "targets": [{"refId": "A", "format": "table", "expr": "_msg:keys owner:~\"${team:regex}\" | stats by (sid) row_max(_time, owner, labspace, keystrokes) as r", "datasource": {"type": "victoriametrics-logs-datasource", "uid": "${logs}"}}],
+         "transformations": [
+           {"id": "extractFields", "options": {"source": "labels", "format": "json", "replace": true}},
+           {"id": "extractFields", "options": {"source": "r", "format": "json", "replace": true}},
+           {"id": "organize", "options": {"excludeByName": {"Time": true, "Line": true, "id": true, "labels": true, "detected_level": true, "_msg": true, "_stream": true, "_stream_id": true, "tsNs": true, "sid": true},
+             "renameByName": {"owner": "Team", "labspace": "Challenge", "keystrokes": "Keystrokes"},
+             "indexByName": {"owner": 0, "labspace": 1, "keystrokes": 2}}}
+         ],
+         "fieldConfig": {"defaults": {"custom": {"filterable": true}}, "overrides": [
+           {"matcher": {"id": "byName", "options": "Team"}, "properties": [{"id": "custom.width", "value": 140}]},
+           {"matcher": {"id": "byName", "options": "Challenge"}, "properties": [{"id": "custom.width", "value": 110}]},
+           {"matcher": {"id": "byName", "options": "Keystrokes"}, "properties": [{"id": "custom.cellOptions", "value": {"type": "auto", "wrapText": true}}]}
+         ]},
+         "options": {"cellHeight": "sm", "showHeader": true}},
+
+        {"id": 15, "type": "table", "title": "Clipboard — pastes into the desktop", "gridPos": {"h": 11, "w": 11, "x": 13, "y": 28},
+         "description": "One row per distinct paste synced into the workspace. Large or binary pastes (a program / dataset piped in) show a size marker instead of the raw bytes.",
+         "datasource": {"type": "victoriametrics-logs-datasource", "uid": "${logs}"},
+         "targets": [{"refId": "A", "format": "table", "expr": "_msg:clip owner:~\"${team:regex}\" | sort by (_time desc) | fields _time,owner,labspace,clipboard", "datasource": {"type": "victoriametrics-logs-datasource", "uid": "${logs}"}}],
+         "transformations": [
+           {"id": "extractFields", "options": {"source": "labels", "format": "json", "keepTime": true, "replace": true}},
+           {"id": "organize", "options": {"excludeByName": {"Line": true, "id": true, "labels": true, "detected_level": true, "_msg": true, "_stream": true, "_stream_id": true, "tsNs": true},
+             "renameByName": {"owner": "Team", "labspace": "Challenge", "clipboard": "Clipboard"},
+             "indexByName": {"Time": 0, "owner": 1, "labspace": 2, "clipboard": 3}}}
+         ],
+         "fieldConfig": {"defaults": {"custom": {"filterable": true}}, "overrides": [
+           {"matcher": {"id": "byName", "options": "Time"}, "properties": [{"id": "custom.width", "value": 150}]},
+           {"matcher": {"id": "byName", "options": "Team"}, "properties": [{"id": "custom.width", "value": 120}]},
+           {"matcher": {"id": "byName", "options": "Clipboard"}, "properties": [{"id": "custom.cellOptions", "value": {"type": "auto", "wrapText": true}}]}
+         ]},
+         "options": {"cellHeight": "sm", "sortBy": [{"displayName": "Time", "desc": true}], "showHeader": true}},
+
+        {"id": 14, "type": "table", "title": "Signed evidence — risk ≥ 0.5 (tamper-evident, for disputes)", "gridPos": {"h": 9, "w": 24, "x": 0, "y": 39},
+         "description": "Hash-chained + HMAC-signed session_score records. Sort/filter by Team; the hash chain is verifiable end-to-end.",
+         "datasource": {"type": "victoriametrics-logs-datasource", "uid": "${logs}"},
+         "targets": [{"refId": "A", "format": "table", "expr": "_msg:session_score risk:>0.5 | sort by (_time desc) | fields _time,owner,labspace,uid,risk,indicators,seq,hash", "datasource": {"type": "victoriametrics-logs-datasource", "uid": "${logs}"}}],
+         "transformations": [
+           {"id": "extractFields", "options": {"source": "labels", "format": "json", "keepTime": true, "replace": true}},
+           {"id": "organize", "options": {"excludeByName": {"Line": true, "id": true, "labels": true, "detected_level": true, "_msg": true, "_stream": true, "_stream_id": true, "tsNs": true},
+             "renameByName": {"owner": "Team", "labspace": "Challenge", "uid": "User", "risk": "Risk", "indicators": "Detectors", "seq": "Seq", "hash": "Hash"},
+             "indexByName": {"Time": 0, "owner": 1, "labspace": 2, "uid": 3, "risk": 4, "indicators": 5, "seq": 6, "hash": 7}}}
+         ],
+         "fieldConfig": {"defaults": {"custom": {"filterable": true}}, "overrides": [
+           {"matcher": {"id": "byName", "options": "Time"}, "properties": [{"id": "custom.width", "value": 160}]},
+           {"matcher": {"id": "byName", "options": "Team"}, "properties": [{"id": "custom.width", "value": 150}]},
+           {"matcher": {"id": "byName", "options": "Risk"}, "properties": [
+             {"id": "custom.cellOptions", "value": {"type": "color-background"}},
+             {"id": "thresholds", "value": {"steps": [{"color": "green", "value": null}, {"color": "orange", "value": 0.5}, {"color": "red", "value": 0.7}]}}]},
+           {"matcher": {"id": "byName", "options": "Hash"}, "properties": [{"id": "custom.width", "value": 260}]}
+         ]},
+         "options": {"cellHeight": "sm", "sortBy": [{"displayName": "Time", "desc": true}], "showHeader": true}}
+      ]
+    }

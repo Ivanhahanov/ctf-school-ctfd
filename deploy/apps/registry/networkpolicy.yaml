@@ -1,0 +1,34 @@
+# ISOLATION — the whole point of a separate `registry` namespace. The registry holds
+# challenge source, so nothing in the cluster may reach it EXCEPT the gateway: push/pull
+# only ever arrives via the HTTPRoute (HTTPS + auth). Task (lab-session-*) and app pods
+# therefore cannot touch the registry Service directly; they'd have to go out through the
+# gateway like any external client, where basic-auth applies.
+#
+# Selecting the registry pod with an Ingress policy makes it default-deny. kubelet health
+# probes (host → pod) are allowed by Cilium regardless, so the TCP probes still work.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: registry-isolation
+  namespace: registry
+spec:
+  podSelector:
+    matchLabels: { app: registry }
+  policyTypes: [Ingress, Egress]
+  ingress:
+    # Only the Envoy Gateway data plane may connect (it fronts the HTTPRoute).
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: envoy-gateway-system
+      ports:
+        - { protocol: TCP, port: 5000 }
+  egress:
+    # Filesystem-backed storage needs nothing off-node except DNS resolution.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - { protocol: UDP, port: 53 }
+        - { protocol: TCP, port: 53 }

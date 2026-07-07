@@ -52,13 +52,16 @@ make hosts                               # once the Gateway has an IP (needs clo
 make dev-update                          # day-2: rebuild+reload images, re-publish, reconcile
 
 # ── CI — build + PUSH everything (no cluster), at $(TAG) + :latest ────────────
-make ci TAG=v0.1.0                       # docker push images + flux push artifacts
+make ci                                  # docker push images + flux push artifacts (:latest)
 
 # ── DEMO — prod-style on kind: PULL pre-built :latest (run `make ci` first) ───
 make demo                                # kind + Flux pulls explabs/ctf-school-* :latest
 
-# ── PROD — Flux only (assumes `make ci TAG=<ver>` already pushed) ─────────────
-make prod TAG=v0.1.0                     # flux install + sops-age + seed (clusters/cloud)
+# ── PROD — Flux only (assumes `make ci` already pushed :latest) ──────────────
+make prod TAG=latest                     # flux install + sops-age + seed (clusters/cloud)
+# Cloud tracks the moving :latest (cluster-config IMAGE_TAG=latest), so this one flow
+# ships prod. Re-push then force the rollout: kubectl -n ctfd rollout restart deploy/ctfd.
+# For an immutable release instead: `make ci/prod TAG=v0.1.1` + set IMAGE_TAG=v0.1.1.
 ```
 
 The split is deliberate:

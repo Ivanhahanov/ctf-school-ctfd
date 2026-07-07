@@ -15,9 +15,9 @@ spec:
         # Hands-on engagement per (team, challenge), summed across all restarts.
         - record: team_labspace:engaged_seconds
           expr: sum by (team, labspace) (increase(workspace_guard_active_seconds_total[1d]))
-        # Worst automation score the guard saw for that team+challenge.
-        - record: team_labspace:anomaly_score
-          expr: max by (team, labspace) (workspace_guard_anomaly_score)
+        # Worst automation risk score the guard saw for that team+challenge.
+        - record: team_labspace:risk_score
+          expr: max by (team, labspace) (workspace_guard_risk_score)
         # Smoking gun: solved, yet < 2 min of real hands-on work in the workspace
         # (they got the flag without working the challenge here → solved elsewhere).
         - record: team_labspace:solved_low_engagement

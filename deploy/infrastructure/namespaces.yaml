@@ -72,3 +72,16 @@ metadata:
     pod-security.kubernetes.io/enforce-version: latest
     pod-security.kubernetes.io/warn: restricted
     pod-security.kubernetes.io/audit: restricted
+---
+# The private task-image registry. Isolated from apps/tasks by NetworkPolicy (only the
+# gateway may reach it). The registry pod is restricted-compliant (non-root, drop-ALL,
+# RO rootfs, RuntimeDefault seccomp), so this namespace enforces the strictest level.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: registry
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted

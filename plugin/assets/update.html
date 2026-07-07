@@ -1,48 +1,53 @@
 {% extends "admin/challenges/update.html" %}
 
+{# i18n: render Russian when the active locale is ru, English otherwise. #}
+{% set _ru = (get_locale()|string).lower().startswith('ru') %}
+{% macro t(en, ru) %}{{ ru if _ru else en }}{% endmacro %}
+
 {% block value %}
 <div class="form-group">
-    <label>Current Value<br>
-        <small class="form-text text-muted">Live value (recalculated on each solve).</small>
+    <label>{{ t('Current Value', 'Текущая стоимость') }}<br>
+        <small class="form-text text-muted">{{ t('Live value (recalculated on each solve).', 'Актуальная стоимость (пересчитывается при каждом решении).') }}</small>
     </label>
     <input type="number" class="form-control" name="value" value="{{ challenge.value }}" disabled>
 </div>
 
 <div class="form-group">
-    <label>Initial Value</label>
+    <label>{{ t('Initial Value', 'Начальная стоимость') }}</label>
     <input type="number" class="form-control" name="initial" value="{{ challenge.initial }}" required>
 </div>
 
 <div class="form-group">
-    <label>Decay Function</label>
+    <label>{{ t('Decay Function', 'Функция затухания') }}</label>
     <select name="function" class="custom-select">
-        <option value="logarithmic" {% if challenge.function == "logarithmic" %}selected{% endif %}>Logarithmic</option>
-        <option value="linear"      {% if challenge.function == "linear"      %}selected{% endif %}>Linear</option>
+        <option value="logarithmic" {% if challenge.function == "logarithmic" %}selected{% endif %}>{{ t('Logarithmic', 'Логарифмическая') }}</option>
+        <option value="linear"      {% if challenge.function == "linear"      %}selected{% endif %}>{{ t('Linear', 'Линейная') }}</option>
     </select>
 </div>
 
 <div class="form-group">
-    <label>Decay</label>
+    <label>{{ t('Decay', 'Затухание') }}</label>
     <input type="number" class="form-control" name="decay" min="1" value="{{ challenge.decay }}" required>
 </div>
 
 <div class="form-group">
-    <label>Minimum Value</label>
+    <label>{{ t('Minimum Value', 'Минимальная стоимость') }}</label>
     <input type="number" class="form-control" name="minimum" value="{{ challenge.minimum }}" required>
 </div>
 
 <div class="form-group">
-    <label>Lab Space Ref<br>
-        <small class="form-text text-muted">Cluster-scoped <code>LabSpace</code> CRD name.</small>
+    <label>{{ t('Lab Space Ref', 'Lab Space Ref') }}<br>
+        <small class="form-text text-muted">{{ t('Cluster-scoped', 'Имя кластерного CRD') }} <code>LabSpace</code>{{ t(' CRD name.', '.') }}</small>
     </label>
     <input type="text" class="form-control" name="lab_space_ref" value="{{ challenge.lab_space_ref }}" required>
 </div>
 
 <div class="form-group">
-    <label>Flag Service<br>
+    <label>{{ t('Flag Service', 'Flag Service') }}<br>
         <small class="form-text text-muted">
-            <code>LabService</code> CRD name whose HMAC env-var becomes the flag.
-            Leave empty to fall back to static CTFd flags.
+            {{ t('CRD name', 'Имя CRD') }} <code>LabService</code>{{ t(', whose HMAC env-var becomes the flag.
+            Leave empty to fall back to static CTFd flags.', ', HMAC-переменная которого становится флагом.
+            Оставьте пустым, чтобы использовать статические флаги CTFd.') }}
         </small>
     </label>
     <input type="text" class="form-control" name="flag_service" value="{{ challenge.flag_service }}">

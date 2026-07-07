@@ -1,0 +1,397 @@
+/* ==========================================================================
+   Alfa CTF — dark theme overlay for CTFd (core-beta / Bootstrap 5.3)
+   Brand palette (alfa_digital_guidelines.pdf):
+     - Alfa Red   #EF3124  (Pantone 1795CU)      — primary accent
+     - Cyan       #05FFFF  (Pantone 318C)         — secondary accent
+     - Black      #000000                         — background
+   Typography: Styrene UI
+   This file is loaded AFTER the compiled Bootstrap bundle and overrides it.
+   ========================================================================== */
+
+/* ---------- Fonts ---------- */
+@font-face {
+  font-family: "Styrene UI";
+  src: url("../fonts/styrene-ui_regular.woff2") format("woff2"),
+       url("../fonts/styrene-ui_regular.woff") format("woff");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Styrene UI";
+  src: url("../fonts/styrene-ui_medium.woff2") format("woff2"),
+       url("../fonts/styrene-ui_medium.woff") format("woff");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Styrene UI";
+  src: url("../fonts/styrene-ui_bold.woff2") format("woff2"),
+       url("../fonts/styrene-ui_bold.woff") format("woff");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ---------- Brand tokens ---------- */
+:root {
+  --alfa-red: #ef3124;
+  --alfa-red-hover: #ff4433;
+  --alfa-red-dark: #c8210f;
+  --alfa-cyan: #05ffff;
+  --alfa-cyan-dim: #06c7c7;
+  --alfa-black: #000000;
+  --alfa-bg: #06070a;
+  --alfa-surface: #0d1117;
+  --alfa-surface-2: #12161d;
+  --alfa-border: #1e2530;
+  --alfa-text: #f5f7fa;
+  --alfa-muted: #8b95a5;
+  --alfa-font: "Styrene UI", "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+
+/* ---------- Force a single dark scheme + Bootstrap variable overrides ---------- */
+html,
+[data-bs-theme="light"],
+[data-bs-theme="dark"] {
+  color-scheme: dark;
+
+  --bs-body-bg: var(--alfa-bg);
+  --bs-body-bg-rgb: 6, 7, 10;
+  --bs-body-color: var(--alfa-text);
+  --bs-body-color-rgb: 245, 247, 250;
+  --bs-body-font-family: var(--alfa-font);
+
+  --bs-emphasis-color: #ffffff;
+  --bs-emphasis-color-rgb: 255, 255, 255;
+  --bs-secondary-color: var(--alfa-muted);
+  --bs-secondary-bg: var(--alfa-surface-2);
+  --bs-tertiary-bg: var(--alfa-surface);
+  --bs-tertiary-color: var(--alfa-muted);
+
+  --bs-border-color: var(--alfa-border);
+  --bs-border-color-translucent: rgba(255, 255, 255, 0.1);
+
+  --bs-primary: var(--alfa-red);
+  --bs-primary-rgb: 239, 49, 36;
+  --bs-primary-text-emphasis: #ff8f86;
+  --bs-primary-bg-subtle: #2a0d0a;
+  --bs-primary-border-subtle: #5c1a12;
+
+  --bs-link-color: var(--alfa-cyan);
+  --bs-link-color-rgb: 5, 255, 255;
+  --bs-link-hover-color: #7dffff;
+  --bs-link-hover-color-rgb: 125, 255, 255;
+
+  --bs-heading-color: #ffffff;
+  --bs-code-color: var(--alfa-cyan);
+  --bs-highlight-bg: #2a0d0a;
+
+  --bs-card-bg: var(--alfa-surface);
+  --bs-card-border-color: var(--alfa-border);
+  --bs-card-cap-bg: var(--alfa-surface-2);
+
+  --bs-dark: #06070a;
+  --bs-dark-rgb: 6, 7, 10;
+}
+
+body {
+  background-color: var(--alfa-bg);
+  color: var(--alfa-text);
+  font-family: var(--alfa-font);
+  min-height: 100vh;
+  /* very subtle brand ambience — keep the canvas essentially black */
+  background-image:
+    radial-gradient(1100px 520px at 50% -8%, rgba(239, 49, 36, 0.05), transparent 68%),
+    radial-gradient(900px 500px at 88% 12%, rgba(5, 255, 255, 0.035), transparent 70%);
+  background-attachment: fixed;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--alfa-font);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+a { text-decoration: none; }
+a:hover { text-decoration: none; }
+
+::selection { background: var(--alfa-red); color: #fff; }
+
+/* ---------- Navbar (Alfa red) ---------- */
+.navbar.fixed-top,
+.navbar.bg-dark,
+nav.navbar {
+  background: var(--alfa-red) !important;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.25);
+  box-shadow: 0 2px 20px rgba(239, 49, 36, 0.35);
+  --bs-navbar-color: rgba(255, 255, 255, 0.85);
+  --bs-navbar-hover-color: #ffffff;
+  --bs-navbar-active-color: #ffffff;
+  --bs-navbar-brand-color: #ffffff;
+  --bs-navbar-brand-hover-color: #ffffff;
+  --bs-navbar-toggler-border-color: rgba(255, 255, 255, 0.4);
+  --bs-navbar-toggler-icon-bg: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba%28255,255,255,0.9%29' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e");
+}
+
+.navbar .navbar-brand {
+  font-weight: 700;
+  font-size: 1.35rem;
+  letter-spacing: 0.01em;
+  color: #fff !important;
+}
+.navbar .navbar-brand .brand-accent { color: #fff; }
+
+.navbar .nav-link {
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.88) !important;
+  transition: color 0.15s ease, opacity 0.15s ease;
+}
+.navbar .nav-link:hover,
+.navbar .nav-link:focus,
+.navbar .nav-link.active {
+  color: #fff !important;
+}
+.navbar .navbar-nav .nav-link.active,
+.navbar .navbar-nav .show > .nav-link {
+  text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+}
+.navbar .dropdown-menu { background: var(--alfa-surface); border-color: var(--alfa-border); }
+.navbar .badge-notification { box-shadow: 0 0 0 2px var(--alfa-red); }
+
+main[role="main"] { padding-top: 4.25rem; padding-bottom: 3rem; }
+
+/* Page title band (core ".jumbotron") — kill the flat grey block, blend into
+   the black canvas with a faint brand glow behind the heading. */
+.jumbotron {
+  background: transparent !important;
+  background-image:
+    radial-gradient(80% 120% at 50% 0%, rgba(239, 49, 36, 0.10), transparent 60%) !important;
+  color: var(--alfa-text);
+  margin-bottom: 2.5rem;
+  padding: 3rem 1rem 2.5rem;
+}
+.jumbotron .container,
+.jumbotron h1,
+.jumbotron h2 {
+  font-family: var(--alfa-font);
+  font-weight: 700;
+  color: #ffffff;
+}
+.jumbotron h1 { letter-spacing: -0.01em; }
+
+/* The landing page itself is NOT baked into the theme — it lives in the CTFd
+   index Page content (Admin → Pages) and is fully self-contained. See
+   theme/alfa/landing.html. This keeps the home page a native, editable field. */
+
+/* ==========================================================================
+   Buttons
+   ========================================================================== */
+.btn {
+  font-family: var(--alfa-font);
+  font-weight: 500;
+  border-radius: 6px;
+  transition: transform 0.05s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+.btn:active { transform: translateY(1px); }
+
+.btn-primary {
+  --bs-btn-bg: var(--alfa-red);
+  --bs-btn-border-color: var(--alfa-red);
+  --bs-btn-hover-bg: var(--alfa-red-hover);
+  --bs-btn-hover-border-color: var(--alfa-red-hover);
+  --bs-btn-active-bg: var(--alfa-red-dark);
+  --bs-btn-active-border-color: var(--alfa-red-dark);
+  --bs-btn-disabled-bg: var(--alfa-red);
+  --bs-btn-disabled-border-color: var(--alfa-red);
+  --bs-btn-color: #fff;
+  --bs-btn-hover-color: #fff;
+  --bs-btn-active-color: #fff;
+  box-shadow: 0 0 0 rgba(239, 49, 36, 0);
+}
+.btn-primary:hover { box-shadow: 0 4px 18px rgba(239, 49, 36, 0.45); }
+
+.btn-outline-primary {
+  --bs-btn-color: var(--alfa-cyan);
+  --bs-btn-border-color: var(--alfa-cyan);
+  --bs-btn-hover-bg: var(--alfa-cyan);
+  --bs-btn-hover-border-color: var(--alfa-cyan);
+  --bs-btn-hover-color: #04222b;
+  --bs-btn-active-bg: var(--alfa-cyan);
+  --bs-btn-active-border-color: var(--alfa-cyan);
+  --bs-btn-active-color: #04222b;
+}
+.btn-outline-primary:hover { box-shadow: 0 4px 18px rgba(5, 255, 255, 0.35); }
+
+.btn-secondary,
+.btn-outline-secondary {
+  --bs-btn-color: var(--alfa-text);
+  --bs-btn-border-color: var(--alfa-border);
+  --bs-btn-bg: var(--alfa-surface-2);
+  --bs-btn-hover-bg: var(--alfa-surface);
+  --bs-btn-hover-border-color: var(--alfa-cyan);
+  --bs-btn-hover-color: #fff;
+}
+
+.btn-info {
+  --bs-btn-bg: var(--alfa-cyan);
+  --bs-btn-border-color: var(--alfa-cyan);
+  --bs-btn-color: #04222b;
+  --bs-btn-hover-bg: #7dffff;
+  --bs-btn-hover-border-color: #7dffff;
+  --bs-btn-hover-color: #04222b;
+}
+
+/* ==========================================================================
+   Cards, surfaces, tables, forms
+   ========================================================================== */
+.card,
+.modal-content,
+.list-group-item,
+.accordion-item,
+.dropdown-menu {
+  background-color: var(--alfa-surface);
+  border-color: var(--alfa-border);
+  color: var(--alfa-text);
+}
+.card { box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35); }
+.card-header, .modal-header, .modal-footer {
+  background-color: var(--alfa-surface-2);
+  border-color: var(--alfa-border);
+}
+
+/* Challenge tiles */
+.challenge-button,
+button.challenge-button {
+  background-color: var(--alfa-surface) !important;
+  border: 1px solid var(--alfa-border) !important;
+  color: var(--alfa-text) !important;
+  border-radius: 8px;
+  transition: transform 0.1s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.challenge-button:hover,
+button.challenge-button:hover {
+  border-color: var(--alfa-cyan) !important;
+  box-shadow: 0 6px 24px rgba(5, 255, 255, 0.18);
+  transform: translateY(-2px);
+}
+.challenge-button.solved-challenge,
+.challenge-button.solved-challenge:hover {
+  border-color: var(--alfa-red) !important;
+  box-shadow: inset 0 0 0 1px var(--alfa-red), 0 6px 24px rgba(239, 49, 36, 0.25);
+}
+.challenge-button .challenge-name { color: #fff; font-weight: 700; }
+.challenge-button .challenge-value { color: var(--alfa-cyan); }
+
+/* Category headings on the challenges board */
+.challenge-category,
+h1.challenge-category { color: var(--alfa-cyan); }
+
+.table {
+  --bs-table-bg: transparent;
+  --bs-table-color: var(--alfa-text);
+  --bs-table-border-color: var(--alfa-border);
+  --bs-table-striped-bg: rgba(255, 255, 255, 0.03);
+  --bs-table-hover-bg: rgba(5, 255, 255, 0.07);
+  --bs-table-hover-color: #fff;
+}
+.table thead th {
+  color: var(--alfa-muted);
+  text-transform: uppercase;
+  font-size: 0.8rem;
+  letter-spacing: 0.05em;
+  border-bottom: 2px solid var(--alfa-red) !important;
+}
+
+.form-control,
+.form-select,
+.input-group-text {
+  background-color: var(--alfa-surface);
+  border-color: var(--alfa-border);
+  color: var(--alfa-text);
+}
+.form-control::placeholder { color: var(--alfa-muted); }
+.form-control:focus,
+.form-select:focus {
+  background-color: var(--alfa-surface);
+  border-color: var(--alfa-cyan);
+  color: var(--alfa-text);
+  box-shadow: 0 0 0 0.2rem rgba(5, 255, 255, 0.2);
+}
+
+/* ==========================================================================
+   Misc components
+   ========================================================================== */
+a { color: var(--alfa-cyan); }
+a:hover { color: #7dffff; }
+
+.badge.bg-primary { background-color: var(--alfa-red) !important; }
+.badge.bg-info { background-color: var(--alfa-cyan) !important; color: #04222b !important; }
+
+.text-primary { color: var(--alfa-red) !important; }
+.text-info, .text-secondary-accent { color: var(--alfa-cyan) !important; }
+.bg-primary { background-color: var(--alfa-red) !important; }
+
+.progress { background-color: var(--alfa-surface-2); }
+.progress-bar { background-color: var(--alfa-red); }
+
+.alert-info {
+  --bs-alert-bg: rgba(5, 255, 255, 0.08);
+  --bs-alert-border-color: rgba(5, 255, 255, 0.4);
+  --bs-alert-color: #a9ffff;
+}
+.alert-success {
+  --bs-alert-bg: rgba(5, 255, 255, 0.08);
+  --bs-alert-border-color: rgba(5, 255, 255, 0.4);
+  --bs-alert-color: #a9ffff;
+}
+.alert-danger {
+  --bs-alert-bg: rgba(239, 49, 36, 0.12);
+  --bs-alert-border-color: rgba(239, 49, 36, 0.5);
+  --bs-alert-color: #ff9a90;
+}
+
+.nav-tabs {
+  --bs-nav-tabs-border-color: var(--alfa-border);
+  --bs-nav-tabs-link-active-bg: var(--alfa-surface);
+  --bs-nav-tabs-link-active-color: #fff;
+  --bs-nav-tabs-link-active-border-color: var(--alfa-red) var(--alfa-red) var(--alfa-surface);
+}
+.nav-tabs .nav-link { color: var(--alfa-muted); }
+.nav-tabs .nav-link:hover { color: var(--alfa-cyan); border-color: transparent; }
+
+hr { border-color: var(--alfa-border); opacity: 0.6; }
+
+code, pre, kbd {
+  font-family: "JetBrains Mono", "Fira Code", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+pre, code { color: var(--alfa-cyan); }
+
+/* Footer */
+.footer {
+  background: transparent;
+  border-top: 1px solid var(--alfa-border);
+  padding: 1.25rem 0;
+  margin-top: 2rem;
+}
+.footer .text-muted { color: var(--alfa-muted) !important; }
+.footer a:hover .text-muted { color: var(--alfa-cyan) !important; }
+
+/* The core theme ships a light/dark toggle; this theme is dark-only. */
+.theme-switch { display: none !important; }
+
+/* Auth pages: keep forms centered on the dark canvas */
+.form-control:-webkit-autofill {
+  -webkit-text-fill-color: var(--alfa-text);
+  -webkit-box-shadow: 0 0 0 1000px var(--alfa-surface) inset;
+}
+
+/* Scrollbar accents */
+* { scrollbar-color: var(--alfa-red) var(--alfa-bg); }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: var(--alfa-bg); }
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(var(--alfa-red), var(--alfa-red-dark));
+  border-radius: 6px;
+}

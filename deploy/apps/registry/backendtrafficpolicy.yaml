@@ -1,0 +1,17 @@
+# Image layers can be multi-GB; a push/pull is a single long HTTP request. The gateway's
+# default 1-hour request timeout is usually fine, but idle connections during a slow blob
+# transfer must not be reaped, and we make the request budget explicit and generous.
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: BackendTrafficPolicy
+metadata:
+  name: registry
+  namespace: registry
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: registry
+  timeout:
+    http:
+      requestTimeout: 3600s        # a multi-GB layer over a slow link can take a while
+      connectionIdleTimeout: 900s

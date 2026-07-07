@@ -1,0 +1,180 @@
+<!--
+  ┌────────────────────────────────────────────────────────────────────────┐
+  │  Alfa CTF — landing page (home)                                         │
+  │                                                                        │
+  │  This is NOT part of the theme. It is the content of the CTFd index    │
+  │  page, so you can edit it freely without touching any template.        │
+  │                                                                        │
+  │  How to use:                                                           │
+  │   1. Admin → Pages → open the "index" page.                            │
+  │   2. Set Format = HTML.                                                 │
+  │   3. Paste everything below into the content field and Save.           │
+  │                                                                        │
+  │  Everything is self-contained (scoped styles + brand colors inline),   │
+  │  so it also survives a theme change. The only external asset is the    │
+  │  artwork — served from the theme at /themes/alfa/static/img/appsec.svg.│
+  │  Prefer to decouple it fully? Upload appsec.svg in Admin → Files and    │
+  │  replace the <img src> below with the file URL it gives you.           │
+  └────────────────────────────────────────────────────────────────────────┘
+-->
+<section class="alfa-landing">
+  <div class="alfa-landing__art-wrap">
+    <img
+      class="alfa-landing__art"
+      src="/themes/alfa/static/img/appsec.png"
+      alt="Alfa CTF · AppSec"
+      loading="eager"
+      decoding="async"
+    >
+  </div>
+
+  <p class="alfa-landing__kicker"><span>+&#8202;+&#8202;+</span>&ensp;ALFA&nbsp;CTF&ensp;·&ensp;APPSEC</p>
+
+  <h1 class="alfa-landing__title">
+    Добро пожаловать на&nbsp;Третий&nbsp;CTF<br>
+    для сотрудников Альфа-Банка
+  </h1>
+
+  <p class="alfa-landing__lead">
+    Регистрация проводится в&nbsp;разделе &laquo;События&raquo; на&nbsp;Alfa&nbsp;People,
+    а&nbsp;на&nbsp;сайте вы&nbsp;можете ознакомиться с&nbsp;правилами мероприятия.
+  </p>
+
+  <!-- Edit the hrefs / labels freely. /challenges always exists; /rules is the
+       Rules page (Admin → Pages, route "rules" — see rules.html). -->
+  <div class="alfa-landing__actions">
+    <a class="alfa-btn alfa-btn--primary" href="/rules">Правила</a>
+    <a class="alfa-btn alfa-btn--ghost" href="/challenges">К заданиям</a>
+  </div>
+</section>
+
+<style>
+  /* Scoped to .alfa-landing so nothing leaks into the rest of the site. */
+  .alfa-landing {
+    --red: #ef3124;
+    --cyan: #05ffff;
+    --ink: #ffffff;
+    --muted: rgba(255, 255, 255, 0.66);
+    font-family: "Styrene UI", "Segoe UI", system-ui, -apple-system, sans-serif;
+    text-align: center;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: clamp(1rem, 3vw, 2.5rem) 1rem 4rem;
+  }
+
+  .alfa-landing__art-wrap {
+    position: relative;
+    display: flex;
+    justify-content: center;
+  }
+  /* faint glow behind the artwork so it reads as light, not a pasted box */
+  .alfa-landing__art-wrap::before {
+    content: "";
+    position: absolute;
+    inset: 6% 0 6% 0;
+    background: radial-gradient(52% 60% at 50% 46%, rgba(5, 255, 255, 0.10), transparent 72%);
+    filter: blur(6px);
+    pointer-events: none;
+  }
+  .alfa-landing__art {
+    position: relative;
+    display: block;
+    width: auto;
+    height: auto;
+    /* Cap by BOTH width and height and keep aspect ratio, so a near-square PNG
+       never dominates the desktop viewport (max-height) yet still fills a narrow
+       phone (max-width). width/height:auto lets it scale to whichever is tighter. */
+    max-width: min(100%, 760px);
+    max-height: 56vh;
+    margin: 0 auto;
+    filter: drop-shadow(0 12px 48px rgba(5, 255, 255, 0.16));
+  }
+
+  .alfa-landing__kicker {
+    margin: clamp(0.5rem, 2vw, 1.75rem) 0 0.9rem;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.26em;
+    text-transform: uppercase;
+    color: var(--cyan);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.92;
+  }
+  .alfa-landing__kicker span {
+    color: var(--red);
+    letter-spacing: 0.12em;
+    text-shadow: 0 0 10px rgba(239, 49, 36, 0.6);
+  }
+
+  .alfa-landing__title {
+    margin: 0 auto 1.1rem;
+    max-width: 900px;
+    font-weight: 700;
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+    font-size: clamp(1.7rem, 4.4vw, 3.05rem);
+    color: var(--ink);
+    text-shadow: 0 0 22px rgba(5, 255, 255, 0.28);
+  }
+
+  .alfa-landing__lead {
+    margin: 0 auto;
+    max-width: 640px;
+    font-size: clamp(1rem, 1.5vw, 1.2rem);
+    line-height: 1.65;
+    color: var(--muted);
+  }
+
+  .alfa-landing__actions {
+    margin-top: clamp(1.5rem, 3vw, 2.4rem);
+    display: flex;
+    gap: 0.85rem;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .alfa-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 190px;
+    padding: 0.85rem 1.7rem;
+    border-radius: 9px;
+    font-weight: 600;
+    font-size: 1.02rem;
+    text-decoration: none;
+    border: 1.5px solid transparent;
+    transition: transform 0.08s ease, box-shadow 0.18s ease, background 0.18s ease, color 0.18s ease;
+  }
+  .alfa-btn:hover { transform: translateY(-2px); text-decoration: none; }
+  .alfa-btn:active { transform: translateY(0); }
+
+  .alfa-btn--primary {
+    background: var(--red);
+    color: #fff;
+    box-shadow: 0 8px 22px rgba(239, 49, 36, 0.28);
+  }
+  .alfa-btn--primary:hover {
+    background: #ff4433;
+    color: #fff;
+    box-shadow: 0 12px 30px rgba(239, 49, 36, 0.45);
+  }
+
+  .alfa-btn--ghost {
+    background: transparent;
+    color: var(--cyan);
+    border-color: rgba(5, 255, 255, 0.55);
+  }
+  .alfa-btn--ghost:hover {
+    color: #041b1f;
+    background: var(--cyan);
+    border-color: var(--cyan);
+    box-shadow: 0 12px 30px rgba(5, 255, 255, 0.35);
+  }
+
+  @media (max-width: 575px) {
+    .alfa-landing { padding-bottom: 2.5rem; }
+    .alfa-btn { width: 100%; }
+  }
+</style>

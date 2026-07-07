@@ -1,0 +1,14 @@
+# Persistent storage for the registry blobs. Sized for several challenge images plus
+# any challenge-specific workspace images (which can be multi-GB). Override per cluster
+# with ${REGISTRY_STORAGE} in cluster-config; defaults to 100Gi. Uses the cluster's
+# default StorageClass.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: registry-data
+  namespace: registry
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: ${REGISTRY_STORAGE:=100Gi}

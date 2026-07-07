@@ -1,0 +1,12 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: registry
+resources:
+  - pvc.yaml
+  - deployment.yaml
+  - service.yaml
+  - httproute.yaml
+  - networkpolicy.yaml
+  - backendtrafficpolicy.yaml
+# The `registry-auth` Secret (htpasswd + http_secret) is NOT here — it is supplied per
+# cluster via the SOPS `secrets` flow (see README.md), like ctf-school-secret.

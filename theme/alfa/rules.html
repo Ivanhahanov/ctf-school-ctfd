@@ -1,0 +1,295 @@
+<!--
+  ┌────────────────────────────────────────────────────────────────────────┐
+  │  Alfa CTF — Rules page (Правила)                                        │
+  │                                                                        │
+  │  Native, editable CTFd page content — not part of the theme.           │
+  │                                                                        │
+  │  How to use:                                                           │
+  │   1. Admin → Pages → New Page.                                          │
+  │   2. Title = "Правила", Route = "rules", Format = HTML.                 │
+  │   3. Tick "Show in navbar" so it appears next to Задания/Рейтинг.       │
+  │   4. Paste everything below into the content field and Save.            │
+  │                                                                        │
+  │  Design follows the Alfa Digital brandbook: geometric type, lots of    │
+  │  air, and the signature "base element" — a solid red bar — used as the  │
+  │  underline accent under headings. Self-contained (scoped styles +      │
+  │  inline brand colors + signs.svg glyphs baked in as data-URIs).        │
+  └────────────────────────────────────────────────────────────────────────┘
+-->
+<section class="alfa-rules">
+  <header class="alfa-rules__head">
+    <p class="alfa-rules__eyebrow">Alfa&nbsp;CTF · AppSec</p>
+    <h1 class="alfa-rules__title">Правила<br>соревнований</h1>
+    <span class="alfa-bar alfa-bar--center"></span>
+    <p class="alfa-rules__subtitle">Всё, что нужно знать перед стартом — коротко и по делу.</p>
+  </header>
+
+  <article class="alfa-sec">
+    <span class="alfa-sec__num">01</span>
+    <h2 class="alfa-sec__title">Что такое CTF?<span class="alfa-bar"></span></h2>
+    <p>
+      Capture&nbsp;The&nbsp;Flag (CTF) &mdash; соревнование по информационной безопасности,
+      обучающее этичному хакингу. Это как олимпиадное программирование, но в&nbsp;сфере&nbsp;ИБ.
+      Команды получают задания по различным направлениям:
+    </p>
+    <ul class="alfa-list alfa-list--plus">
+      <li>Поиск WEB-уязвимостей.</li>
+      <li>Криптография — анализ кода и алгоритмов шифрования.</li>
+      <li>Анализ скомпилированного кода мобильных приложений.</li>
+    </ul>
+    <p>
+      Задания охватывают все направления, с которыми работают профессионалы, но в&nbsp;учебном
+      формате: проблема ИБ гарантированно есть, и найти её решение можно логически.
+    </p>
+    <p>
+      В&nbsp;Alfa&nbsp;CTF могут участвовать разработчики, тестировщики, аналитики и другие
+      участники команд разработки — <b class="hl">без опыта</b> в&nbsp;информационной безопасности.
+      Задания разной сложности спроектированы так, чтобы вы научились чему-то новому.
+      Соревнование проходит в&nbsp;формате Jeopardy (TaskBased) — о&nbsp;нём ниже.
+    </p>
+  </article>
+
+  <article class="alfa-sec">
+    <span class="alfa-sec__num">02</span>
+    <h2 class="alfa-sec__title">Что за формат Jeopardy?<span class="alfa-bar"></span></h2>
+    <p>
+      Формат максимально похож на «Свою игру»: есть задания по различным направлениям и
+      неизвестной заранее сложности, решая которые вы получаете очки. За решённое задание
+      вы получаете <b class="hl">флаг</b> &mdash; строку вида
+      <code class="alfa-code">flag{secretnaya_stroka_123}</code>.
+    </p>
+    <ol class="alfa-steps">
+      <li>Получили флаг.</li>
+      <li>Ввели в задание.</li>
+      <li>Очки за задание — ваши!</li>
+    </ol>
+    <p>
+      Чем больше команд решит задание, тем меньше оно стоит (и для вас, и для остальных),
+      поэтому <b class="hl">делиться ответами запрещено</b>. Стоимость задания может
+      уменьшаться по ходу игры — это нормально: вы сохраните лидерство, так как были первыми.
+    </p>
+    <p>
+      Побеждают команды, набравшие максимум очков. При равенстве баллов выше окажется та,
+      что раньше сдала своё последнее задание.
+    </p>
+  </article>
+
+  <article class="alfa-sec">
+    <span class="alfa-sec__num">03</span>
+    <h2 class="alfa-sec__title">Мне можно всё взламывать?<span class="alfa-bar"></span></h2>
+    <p>
+      Если коротко — <b class="hl">да!</b> Для каждого задания платформа выдаёт персональное
+      <b class="hl">виртуальное рабочее пространство</b>: всё необходимое уже настроено внутри.
+      Вам понадобится только <b class="hl">браузер</b> — ничего устанавливать не нужно,
+      остальное платформа берёт на себя. Ищите нестандартные подходы и получайте удовольствие
+      от процесса, но не лишайте этого удовольствия других!
+    </p>
+
+    <div class="alfa-note alfa-note--deny">
+      <b>Никаких AI-ассистентов.</b> Решать задания с&nbsp;помощью ChatGPT,&nbsp;Copilot,&nbsp;Claude
+      и подобных сервисов запрещено — это лишает игру смысла и портит опыт и&nbsp;вам, и&nbsp;другим.
+      Мы&nbsp;здесь, чтобы думать головой.
+    </div>
+
+    <p>Несколько правил, чтобы игра была честной для всех:</p>
+    <ul class="alfa-list alfa-list--cross">
+      <li>Запрещено помогать другим командам и запрашивать помощь у&nbsp;них. Открытое обсуждение решений в&nbsp;общем чате пресекается — общайтесь внутри своей команды.</li>
+      <li>Помощь участников, не&nbsp;зарегистрированных в&nbsp;вашей команде, запрещена — это неспортивно и лишает вас удовольствия от&nbsp;игры.</li>
+      <li>Атаковать платформу, другие команды или выходить за&nbsp;пределы своего игрового стенда запрещено — играйте строго в&nbsp;рамках заданий.</li>
+      <li>Не&nbsp;создавайте помех другим: не&nbsp;нагружайте сервисы трафиком, не&nbsp;регистрируйте фейковые команды и не&nbsp;флудите в&nbsp;общем чате.</li>
+    </ul>
+
+    <div class="alfa-note alfa-note--ok">
+      <b>У каждой команды — своя изолированная инфраструктура.</b> Действия внутри вашего
+      стенда не&nbsp;влияют на&nbsp;другие команды, поэтому экспериментируйте смело:
+      ломайте, перезапускайте, пробуйте безумные идеи.
+    </div>
+
+    <p>Главное — получайте новые знания и кайф от этичного хакинга!</p>
+  </article>
+
+  <article class="alfa-sec">
+    <span class="alfa-sec__num">04</span>
+    <h2 class="alfa-sec__title">А команда точно нужна?<span class="alfa-bar"></span></h2>
+    <p>
+      Участвовать можно и одному, но с&nbsp;друзьями веселее. Мы допускаем тактику малых
+      групп — команды от&nbsp;<b class="hl">1 до 4 человек</b>.
+    </p>
+    <p>
+      После регистрации в&nbsp;личном кабинете вы сможете создать команду и пригласить
+      участников. Чтобы вступить в&nbsp;команду, им тоже нужно зарегистрироваться и авторизоваться.
+      Команду можно собрать среди коллег или найти единомышленников в&nbsp;телеграм-чате.
+    </p>
+    <p>
+      Со спортивной точки зрения команда из&nbsp;4&nbsp;человек имеет наибольшие шансы на&nbsp;победу.
+    </p>
+    <div class="alfa-note">
+      Alfa&nbsp;CTF проводится <b>только для сотрудников Альфа-Банка</b>.
+      Пожалуйста, регистрируйтесь с&nbsp;рабочей почты.
+    </div>
+  </article>
+
+  <article class="alfa-sec">
+    <span class="alfa-sec__num">05</span>
+    <h2 class="alfa-sec__title">У вас есть призы победителям?<span class="alfa-bar"></span></h2>
+    <p>
+      Конечно! Мы подготовили сертификаты Ozon для первой тройки команд, набравших
+      максимум баллов за время соревнований:
+    </p>
+    <div class="alfa-prizes">
+      <div class="alfa-prize alfa-prize--1">
+        <div class="alfa-prize__place">1&nbsp;место</div>
+        <div class="alfa-prize__sum">120&nbsp;000&nbsp;₽</div>
+        <span class="alfa-bar"></span>
+      </div>
+      <div class="alfa-prize alfa-prize--2">
+        <div class="alfa-prize__place">2&nbsp;место</div>
+        <div class="alfa-prize__sum">90&nbsp;000&nbsp;₽</div>
+        <span class="alfa-bar"></span>
+      </div>
+      <div class="alfa-prize alfa-prize--3">
+        <div class="alfa-prize__place">3&nbsp;место</div>
+        <div class="alfa-prize__sum">60&nbsp;000&nbsp;₽</div>
+        <span class="alfa-bar"></span>
+      </div>
+    </div>
+  </article>
+
+  <div class="alfa-rules__cta">
+    <a class="alfa-btn alfa-btn--primary" href="/challenges">К заданиям</a>
+  </div>
+</section>
+
+<style>
+  /* Scoped to .alfa-rules. Follows the Alfa Digital brandbook: geometric
+     Styrene type, generous whitespace, red as the primary accent, and the
+     signature "base element" — a solid red bar — as the heading underline.
+     The + / × bullets are the real glyphs from signs.svg (in brand red). */
+  .alfa-rules {
+    --red: #ef3124;
+    --cyan: #05ffff;
+    --ink: #ffffff;
+    --muted: rgba(233, 238, 243, 0.70);
+    --panel: #0c0f14;
+    --border: rgba(255, 255, 255, 0.09);
+    --sign-plus: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='1073 158 73 74'%3E%3Cpath d='M1101.25 159H1117.28V186.755H1145.05V202.79H1117.28V230.545H1101.25V202.79H1073.48V186.755H1101.25V159Z' fill='%23ef3124'/%3E%3C/svg%3E");
+    --sign-cross: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='1725 162 64 64'%3E%3Cpath d='M1756.81 182.695L1776.44 163.07L1787.78 174.408L1768.15 194.034L1787.78 213.659L1776.44 224.997L1756.81 205.372L1737.18 224.997L1725.84 213.659L1745.47 194.034L1725.84 174.408L1737.18 163.07L1756.81 182.695Z' fill='%23ef3124'/%3E%3C/svg%3E");
+    font-family: "Styrene UI", "Segoe UI", system-ui, -apple-system, sans-serif;
+    max-width: 820px;
+    margin: 0 auto;
+    padding: clamp(1rem, 3vw, 2.5rem) 1rem 4rem;
+    color: var(--ink);
+  }
+
+  /* the brand "base element": a solid red bar */
+  .alfa-bar { display: block; width: 56px; height: 6px; background: var(--red); border-radius: 1px; }
+  .alfa-bar--center { margin: 1.1rem auto 0; }
+
+  /* ── header ───────────────────────────────────────────────────────────── */
+  .alfa-rules__head { text-align: center; margin-bottom: clamp(2.5rem, 6vw, 4.5rem); }
+  .alfa-rules__eyebrow {
+    margin: 0 0 1rem; font-size: 0.82rem; font-weight: 700;
+    letter-spacing: 0.22em; text-transform: uppercase; color: var(--red);
+  }
+  .alfa-rules__title {
+    margin: 0; font-weight: 700; letter-spacing: -0.02em; line-height: 1.04;
+    font-size: clamp(2.1rem, 6vw, 3.6rem); color: var(--ink);
+  }
+  .alfa-rules__subtitle { margin: 1.4rem auto 0; max-width: 500px; color: var(--muted); font-size: 1.08rem; line-height: 1.5; }
+
+  /* ── sections ─────────────────────────────────────────────────────────── */
+  .alfa-sec {
+    position: relative;
+    padding: clamp(1.6rem, 4vw, 2.6rem) 0;
+    border-top: 1px solid var(--border);
+  }
+  .alfa-sec:first-of-type { border-top: 0; }
+  .alfa-sec__num {
+    position: absolute; top: clamp(1.4rem, 4vw, 2.4rem); right: 0;
+    font-size: clamp(2.6rem, 8vw, 4.5rem); font-weight: 700; line-height: 1;
+    color: rgba(255, 255, 255, 0.05); letter-spacing: -0.03em; pointer-events: none; user-select: none;
+  }
+  .alfa-sec__title {
+    position: relative; margin: 0 0 1.4rem; padding-bottom: 1rem;
+    font-weight: 700; letter-spacing: -0.015em; line-height: 1.15;
+    font-size: clamp(1.45rem, 3.6vw, 2.1rem); color: var(--ink);
+    max-width: 90%;
+  }
+  .alfa-sec__title .alfa-bar { position: absolute; left: 0; bottom: 0; }
+
+  .alfa-rules .alfa-sec p { margin: 0 0 1rem; font-size: 1.06rem; line-height: 1.65; color: var(--muted); }
+  .alfa-rules .alfa-sec p:last-child { margin-bottom: 0; }
+
+  .hl { color: var(--ink); font-weight: 700; box-shadow: inset 0 -0.42em 0 rgba(239, 49, 36, 0.28); }
+  .alfa-code {
+    font-family: ui-monospace, "JetBrains Mono", "Fira Code", monospace;
+    color: var(--ink); background: rgba(239, 49, 36, 0.14);
+    border-radius: 5px; padding: 0.12rem 0.5rem; font-size: 0.9em; white-space: nowrap;
+  }
+
+  /* ── lists (signs.svg glyph bullets, brand red) ───────────────────────── */
+  .alfa-list { margin: 0.4rem 0 1.2rem; padding: 0; list-style: none; }
+  .alfa-list li {
+    position: relative; padding-left: 1.9rem; margin-bottom: 0.7rem;
+    font-size: 1.06rem; line-height: 1.55; color: var(--muted);
+  }
+  .alfa-list li::before {
+    content: ""; position: absolute; left: 0; top: 0.34em;
+    width: 0.82rem; height: 0.82rem; background-size: contain; background-repeat: no-repeat;
+  }
+  .alfa-list--plus  li::before { background-image: var(--sign-plus); }
+  .alfa-list--cross li::before { background-image: var(--sign-cross); }
+
+  /* numbered steps */
+  .alfa-steps { margin: 0.4rem 0 1.2rem; padding: 0; list-style: none; counter-reset: step; }
+  .alfa-steps li {
+    position: relative; counter-increment: step; padding-left: 2.5rem; margin-bottom: 0.65rem;
+    font-size: 1.06rem; line-height: 1.6; color: var(--muted);
+  }
+  .alfa-steps li::before {
+    content: counter(step); position: absolute; left: 0; top: -0.05em;
+    width: 1.65rem; height: 1.65rem; display: inline-flex; align-items: center; justify-content: center;
+    font-size: 0.9rem; font-weight: 700; color: #fff; background: var(--red); border-radius: 50%;
+  }
+
+  /* ── notes (left red-bar accent = the base element) ───────────────────── */
+  .alfa-note {
+    margin: 1.3rem 0; padding: 1.05rem 1.2rem;
+    background: rgba(255, 255, 255, 0.03); border-radius: 8px;
+    border-left: 4px solid var(--red);
+    color: var(--ink); font-size: 1.0rem; line-height: 1.55;
+  }
+  .alfa-note b { color: var(--ink); }
+  .alfa-note--deny { background: rgba(239, 49, 36, 0.09); }
+  .alfa-note--ok { border-left-color: var(--cyan); background: rgba(5, 255, 255, 0.06); }
+
+  /* ── prizes ───────────────────────────────────────────────────────────── */
+  .alfa-prizes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.9rem; margin-top: 0.6rem; }
+  .alfa-prize {
+    position: relative; padding: 1.4rem 1.1rem 1.5rem;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px; overflow: hidden;
+  }
+  .alfa-prize__place { font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+  .alfa-prize__sum { margin-top: 0.45rem; font-size: clamp(1.2rem, 3.2vw, 1.6rem); font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .alfa-prize .alfa-bar { margin-top: 1rem; }
+  .alfa-prize--2 .alfa-bar { width: 40px; opacity: 0.75; }
+  .alfa-prize--3 .alfa-bar { width: 28px; opacity: 0.5; }
+
+  /* ── cta ──────────────────────────────────────────────────────────────── */
+  .alfa-rules__cta { text-align: center; margin-top: clamp(2rem, 5vw, 3rem); }
+  .alfa-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 220px; padding: 0.9rem 2rem; border-radius: 8px;
+    font-weight: 600; font-size: 1.05rem; text-decoration: none; border: 1.5px solid transparent;
+    transition: transform 0.08s ease, box-shadow 0.18s ease, background 0.18s ease;
+  }
+  .alfa-btn:hover { transform: translateY(-2px); text-decoration: none; }
+  .alfa-btn--primary { background: var(--red); color: #fff; box-shadow: 0 8px 22px rgba(239, 49, 36, 0.28); }
+  .alfa-btn--primary:hover { background: #ff4433; color: #fff; box-shadow: 0 12px 30px rgba(239, 49, 36, 0.45); }
+
+  @media (max-width: 575px) {
+    .alfa-prizes { grid-template-columns: 1fr; }
+    .alfa-btn { width: 100%; }
+    .alfa-sec__title { max-width: 100%; }
+  }
+</style>

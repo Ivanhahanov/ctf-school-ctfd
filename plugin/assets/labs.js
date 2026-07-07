@@ -7,6 +7,38 @@
     var ROOT = "labs-root";
     var csrf = (window.init && window.init.csrfNonce) || "";
 
+    // i18n — follows <html lang> (set by the theme from CTFd's get_locale()).
+    var LANG = (document.documentElement.lang || "en").toLowerCase().slice(0, 2);
+    var STR = {
+        ru: {
+            "Idle": "Ожидание",
+            "Running": "Работает",
+            "Starting": "Запуск",
+            "Stopping": "Остановка",
+            "Failed": "Ошибка",
+            "Running labs": "Активные стенды",
+            "Limit reached — stop a lab below to start a new one.":
+                "Лимит достигнут — остановите стенд ниже, чтобы запустить новый.",
+            "Open": "Открыть",
+            "Starting…": "Запуск…",
+            "Stop": "Остановить",
+            "No labs running": "Нет активных стендов",
+            "Open a challenge and press “Start Lab”.": "Откройте задание и нажмите «Запустить стенд».",
+            "Could not load labs. Retrying…": "Не удалось загрузить стенды. Повтор…",
+        },
+    };
+    function T(s) { var m = STR[LANG]; return (m && m[s]) || s; }
+    // Phrases with numbers — built per-language so grammar stays correct.
+    function freeText(free, limit) {
+        return LANG === "ru"
+            ? "Свободно " + free + " из " + limit + "."
+            : free + " of " + limit + " slot" + (free === 1 ? "" : "s") + " free.";
+    }
+    function expiresIn(h, m) {
+        if (LANG === "ru") return h > 0 ? "истекает через " + h + "ч " + m + "м" : "истекает через " + m + "м";
+        return h > 0 ? "expires in " + h + "h " + m + "m" : "expires in " + m + "m";
+    }
+
     // Inject the shared styling once.
     if (!document.getElementById("labs-style")) {
         var st = document.createElement("style");
@@ -40,12 +72,12 @@
     }
 
     var PILL = {
-        Running:     ["is-run",  "Running"],
-        Pending:     ["is-busy", "Starting"],
-        Provisioning:["is-busy", "Starting"],
-        Terminating: ["is-busy", "Stopping"],
-        Failed:      ["is-fail", "Failed"],
-        error:       ["is-fail", "Failed"],
+        Running:     ["is-run",  T("Running")],
+        Pending:     ["is-busy", T("Starting")],
+        Provisioning:["is-busy", T("Starting")],
+        Terminating: ["is-busy", T("Stopping")],
+        Failed:      ["is-fail", T("Failed")],
+        error:       ["is-fail", T("Failed")],
     };
 
     function esc(s) {
@@ -54,16 +86,16 @@
         });
     }
     function pill(phase) {
-        var d = PILL[phase] || ["is-idle", phase || "Idle"];
+        var d = PILL[phase] || ["is-idle", T(phase || "Idle")];
         return '<span class="lab-pill ' + d[0] + '"><span class="dot"></span>' + esc(d[1]) + "</span>";
     }
     function expiresText(iso) {
         if (!iso) return "";
         var ms = new Date(iso).getTime() - Date.now();
         if (isNaN(ms)) return "";
-        if (ms <= 0) return "expiring…";
+        if (ms <= 0) return LANG === "ru" ? "истекает…" : "expiring…";
         var m = Math.floor(ms / 60000), h = Math.floor(m / 60);
-        return h > 0 ? "expires in " + h + "h " + (m % 60) + "m" : "expires in " + m + "m";
+        return expiresIn(h, m % 60);
     }
 
     function quota(active, limit) {
@@ -71,24 +103,24 @@
         for (var i = 0; i < limit; i++)
             slots += '<div class="labs-slot ' + (i < active ? (full ? "full" : "on") : "") + '"></div>';
         var note = full
-            ? '<div class="labs-quota-note warn"><i class="fas fa-triangle-exclamation me-1"></i>Limit reached — stop a lab below to start a new one.</div>'
-            : '<div class="labs-quota-note">' + free + ' of ' + limit + ' slot' + (free === 1 ? "" : "s") + ' free.</div>';
+            ? '<div class="labs-quota-note warn"><i class="fas fa-triangle-exclamation me-1"></i>' + T("Limit reached — stop a lab below to start a new one.") + '</div>'
+            : '<div class="labs-quota-note">' + freeText(free, limit) + '</div>';
         return '<div class="labs-quota">'
-            + '<div class="labs-quota-head"><span class="t">Running labs</span><span class="c">' + active + ' / ' + limit + '</span></div>'
+            + '<div class="labs-quota-head"><span class="t">' + T("Running labs") + '</span><span class="c">' + active + ' / ' + limit + '</span></div>'
             + '<div class="labs-slots">' + slots + '</div>' + note + '</div>';
     }
 
     function tile(lab) {
         var anchor = encodeURIComponent(lab.challenge_name + "-" + lab.challenge_id);
         var open = (lab.running && lab.workspace && lab.workspace.address)
-            ? '<a href="/lab/' + lab.challenge_id + '/enter" target="_blank" rel="noopener" class="btn btn-primary btn-sm"><i class="fas fa-display me-1"></i>Open</a>'
-            : '<button class="btn btn-secondary btn-sm" disabled><span class="spinner-border spinner-border-sm me-1"></span>Starting…</button>';
+            ? '<a href="/lab/' + lab.challenge_id + '/enter" target="_blank" rel="noopener" class="btn btn-primary btn-sm"><i class="fas fa-display me-1"></i>' + T("Open") + '</a>'
+            : '<button class="btn btn-secondary btn-sm" disabled><span class="spinner-border spinner-border-sm me-1"></span>' + T("Starting…") + '</button>';
         var meta = lab.running ? esc(expiresText(lab.expires)) : esc(lab.message || "");
         return '<div class="lab-tile">'
             + '<div><a class="lab-tile-name" href="/challenges#' + anchor + '">' + esc(lab.challenge_name) + '</a>'
             +   '<div class="lab-tile-sub">' + pill(lab.phase) + (meta ? '<span><i class="far fa-clock me-1"></i>' + meta + '</span>' : '') + '</div></div>'
             + '<div class="lab-tile-actions">' + open
-            +   '<button class="btn btn-outline-danger btn-sm" data-stop="' + lab.challenge_id + '"><i class="fas fa-stop me-1"></i>Stop</button>'
+            +   '<button class="btn btn-outline-danger btn-sm" data-stop="' + lab.challenge_id + '"><i class="fas fa-stop me-1"></i>' + T("Stop") + '</button>'
             + '</div></div>';
     }
 
@@ -99,8 +131,8 @@
         html += data.labs.length
             ? data.labs.map(tile).join("")
             : '<div class="labs-empty"><i class="fas fa-display fa-2x mb-2 opacity-50"></i>'
-              + '<div class="fw-semibold">No labs running</div>'
-              + '<div class="small">Open a challenge and press “Start Lab”.</div></div>';
+              + '<div class="fw-semibold">' + T("No labs running") + '</div>'
+              + '<div class="small">' + T("Open a challenge and press “Start Lab”.") + '</div></div>';
         root.innerHTML = html;
         root.querySelectorAll("[data-stop]").forEach(function (btn) {
             btn.addEventListener("click", function () { stopLab(parseInt(btn.getAttribute("data-stop"), 10), btn); });
@@ -113,7 +145,7 @@
             .then(render)
             .catch(function () {
                 var root = document.getElementById(ROOT);
-                if (root) root.innerHTML = '<div class="alert alert-danger">Could not load labs. Retrying…</div>';
+                if (root) root.innerHTML = '<div class="alert alert-danger">' + T("Could not load labs. Retrying…") + '</div>';
             });
     }
 

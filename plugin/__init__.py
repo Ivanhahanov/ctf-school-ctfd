@@ -188,13 +188,15 @@ def _jwt_secret() -> bytes:
             or "ctf-school-secret-key").encode()
 
 
-def _make_workspace_token(team: str) -> str:
+def _make_workspace_token(team: str, uid: str = "") -> str:
     secret = _jwt_secret()
     header = _b64url(json.dumps({"alg": "HS256", "typ": "JWT"}, separators=(",", ":")).encode())
-    payload = _b64url(json.dumps(
-        {"team": team, "exp": int(time.time()) + WORKSPACE_TOKEN_TTL},
-        separators=(",", ":"),
-    ).encode())
+    # `uid` (the CTFd user id) identifies the individual participant even inside a
+    # team, so anti-cheat evidence is attributable per-person, not just per-team.
+    claims = {"team": team, "exp": int(time.time()) + WORKSPACE_TOKEN_TTL}
+    if uid:
+        claims["uid"] = uid
+    payload = _b64url(json.dumps(claims, separators=(",", ":")).encode())
     signing = (header + "." + payload).encode()
     sig = _b64url(_hmac.new(secret, signing, hashlib.sha256).digest())
     return header + "." + payload + "." + sig
@@ -587,7 +589,7 @@ def lab_enter(challenge_id):
     resp = redirect(ws["address"])
     resp.set_cookie(
         "lab_auth",
-        _make_workspace_token(salt),
+        _make_workspace_token(salt, str(get_current_user().id)),
         max_age=WORKSPACE_TOKEN_TTL,
         domain="." + domain,   # sent to every *.<domain> workspace; guard scopes by team
         path="/",
@@ -600,20 +602,22 @@ def lab_enter(challenge_id):
 
 _LABS_PAGE = """
 {% extends "base.html" %}
+{% set _ru = (get_locale()|string).lower().startswith('ru') %}
+{% macro t(en, ru) %}{{ ru if _ru else en }}{% endmacro %}
 {% block content %}
 <div class="container py-4" style="max-width:820px">
   <div class="d-flex align-items-start justify-content-between flex-wrap gap-2 mb-1">
     <div>
-      <h2 class="mb-1"><i class="fas fa-display me-2 opacity-75"></i>Labs</h2>
-      <div class="text-muted small"><i class="fas fa-users me-1 opacity-75"></i>Workspaces are shared across your team.</div>
+      <h2 class="mb-1"><i class="fas fa-display me-2 opacity-75"></i>{{ t('Labs', 'Стенды') }}</h2>
+      <div class="text-muted small"><i class="fas fa-users me-1 opacity-75"></i>{{ t('Workspaces are shared across your team.', 'Рабочие окружения общие для всей команды.') }}</div>
     </div>
     <a href="/challenges" class="btn btn-outline-secondary btn-sm">
-      <i class="fas fa-flag me-1"></i>Browse challenges
+      <i class="fas fa-flag me-1"></i>{{ t('Browse challenges', 'К заданиям') }}
     </a>
   </div>
   <div id="labs-root" class="mt-3">
     <div class="text-muted d-flex align-items-center gap-2">
-      <span class="spinner-border spinner-border-sm"></span> Loading labs…
+      <span class="spinner-border spinner-border-sm"></span> {{ t('Loading labs…', 'Загрузка стендов…') }}
     </div>
   </div>
 </div>
@@ -852,6 +856,27 @@ def _validate_secrets() -> None:
             )
 
 
+class _LazyRuEn:
+    """A string that renders EN or RU depending on the active locale at the moment
+    it is stringified. The nav menu title is registered once at load time, so this
+    lets that single label follow CTFd's language switcher per request."""
+
+    def __init__(self, en, ru):
+        self.en, self.ru = en, ru
+
+    def __str__(self):
+        loc = ""
+        try:
+            from flask_babel import get_locale
+            loc = str(get_locale() or "")
+        except Exception:
+            loc = ""
+        return self.ru if loc.lower().startswith("ru") else self.en
+
+    def __html__(self):
+        return str(self)
+
+
 def load(app):
     _validate_secrets()
     with app.app_context():
@@ -859,6 +884,6 @@ def load(app):
 
     app.register_blueprint(lab_api)
     register_plugin_assets_directory(app, base_path="/plugins/lab_manager/assets/")
-    register_user_page_menu_bar("Labs", "/labs")
+    register_user_page_menu_bar(_LazyRuEn("Labs", "Стенды"), "/labs")
     CHALLENGE_CLASSES["lab"] = LabChallengeType
     logger.info("CTFd Lab Manager plugin loaded")

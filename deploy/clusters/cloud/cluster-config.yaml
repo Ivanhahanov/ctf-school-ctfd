@@ -8,7 +8,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata: { name: cluster-config, namespace: flux-system }
 data:
-  CTF_DOMAIN: "ctf.example.com"                         # ← your real domain
+  CTF_DOMAIN: "alfa.ctf.school"
   CTF_SCHEME: "https"
   CTF_FLAG_FORMAT: "CTF{%s}"
   # TLS: start on STAGING (validate DNS-01 + renewal without hitting prod rate limits),
@@ -18,5 +18,16 @@ data:
   # Docker Hub org `explabs`, `ctf-school-` prefix (Docker Hub repos are flat).
   CONTROLLER_IMAGE: "docker.io/explabs/ctf-school-controller"
   CTFD_IMAGE: "docker.io/explabs/ctf-school-ctfd"
-  GUARD_IMAGE: "docker.io/explabs/ctf-school-guard:v0.1.0"   # full ref
-  IMAGE_TAG: "v0.1.0"
+  # Image tags track the MOVING `latest` (same as kind) so ONE flow ships prod:
+  #   make ci                # build + push images :latest
+  #   make prod TAG=latest   # pull the latest manifests AND run the latest images
+  # `TAG` (the OCI manifest artifact) and `IMAGE_TAG` (these container images) are now
+  # the same moving tag — no v0.1.0/latest split to keep in sync.
+  # TRADE-OFF (chosen for time-to-market): `latest` is MUTABLE — no immutable version
+  # pinning, no clean rollback-by-tag, and cosign `verify` in flux-system.yaml stays
+  # OFF. Re-pushing `latest` does NOT auto-rollout (same tag → same manifest); force it
+  # with `kubectl -n ctfd rollout restart deploy/ctfd` (and the controller) after a
+  # `make ci`. To pin an immutable release later, set these back to a version and deploy
+  # with `make ci/prod TAG=v0.1.1`.
+  GUARD_IMAGE: "docker.io/explabs/ctf-school-guard:latest"   # full ref
+  IMAGE_TAG: "latest"

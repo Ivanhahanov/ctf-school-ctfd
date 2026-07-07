@@ -1,5 +1,9 @@
 {% extends "challenge.html" %}
 
+{# i18n: render Russian when the active locale is ru, English otherwise. #}
+{% set _ru = (get_locale()|string).lower().startswith('ru') %}
+{% macro t(en, ru) %}{{ ru if _ru else en }}{% endmacro %}
+
 {% block description %}
 <style>
   /* Scoped lab-card styling. The whole point is a STABLE layout: fixed slots that
@@ -43,23 +47,23 @@
 <div id="lab-card-{{ challenge.id }}" class="lab-card">
 
   <div class="lab-head">
-    <span class="lab-label"><i class="fas fa-display"></i>Lab Environment</span>
-    <span id="lab-pill-{{ challenge.id }}" class="lab-pill is-idle"><span class="dot"></span><span id="lab-pill-text-{{ challenge.id }}">Checking</span></span>
+    <span class="lab-label"><i class="fas fa-display"></i>{{ t('Lab Environment', 'Рабочий стенд') }}</span>
+    <span id="lab-pill-{{ challenge.id }}" class="lab-pill is-idle"><span class="dot"></span><span id="lab-pill-text-{{ challenge.id }}">{{ t('Checking', 'Проверка') }}</span></span>
   </div>
 
   <!-- The single morphing primary action. Rendered as an <a> so it can BE a real
        link (Open Workspace) or ACT as a button (Start) without swapping elements. -->
   <a id="lab-primary-{{ challenge.id }}" class="btn btn-secondary lab-primary disabled" href="#" role="button">
     <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-    <span id="lab-primary-text-{{ challenge.id }}">Checking status…</span>
+    <span id="lab-primary-text-{{ challenge.id }}">{{ t('Checking status…', 'Проверка статуса…') }}</span>
   </a>
 
   <!-- Secondary controls appear only while a lab exists (running / provisioning). -->
   <div id="lab-secondary-{{ challenge.id }}" class="lab-secondary" style="display:none">
     <button class="btn btn-outline-secondary btn-sm" id="lab-btn-reload-{{ challenge.id }}"
-            onclick="labAction({{ challenge.id }}, 'reload')"><i class="fas fa-rotate me-1"></i>Restart</button>
+            onclick="labAction({{ challenge.id }}, 'reload')"><i class="fas fa-rotate me-1"></i>{{ t('Restart', 'Перезапустить') }}</button>
     <button class="btn btn-outline-danger btn-sm" id="lab-btn-stop-{{ challenge.id }}"
-            onclick="labAction({{ challenge.id }}, 'stop')"><i class="fas fa-stop me-1"></i>Stop</button>
+            onclick="labAction({{ challenge.id }}, 'stop')"><i class="fas fa-stop me-1"></i>{{ t('Stop', 'Остановить') }}</button>
   </div>
 
   <!-- Fixed-height hint / message slot (idle help, provisioning status, running

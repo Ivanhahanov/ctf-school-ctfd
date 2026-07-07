@@ -7,5 +7,6 @@ resources:
   - vmpodscrape-guard.yaml
   - vmrule-anti-cheat.yaml
   - httproute-grafana.yaml
+  - grafana-datasource-victorialogs.yaml
   - dashboards/lab-ops.yaml
-  - dashboards/anti-ai.yaml
+  - dashboards/anti-cheat.yaml

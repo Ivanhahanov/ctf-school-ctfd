@@ -74,6 +74,22 @@ spec:
     substituteFrom:
       - { kind: ConfigMap, name: cluster-config }
 ---
+# Private task-image registry (challenge source). Needs the namespace (infrastructure)
+# and the Gateway (its HTTPRoute attaches to the ctfd Gateway). The `registry-auth`
+# Secret is applied by the `secrets` Kustomization; the registry pod waits for it.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata: { name: registry, namespace: flux-system }
+spec:
+  dependsOn: [{ name: infrastructure }, { name: gateway }]
+  interval: 30m
+  path: ./deploy/apps/registry
+  prune: true
+  sourceRef: { kind: OCIRepository, name: flux-system }
+  postBuild:
+    substituteFrom:
+      - { kind: ConfigMap, name: cluster-config }
+---
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata: { name: monitoring-config, namespace: flux-system }
@@ -131,6 +147,13 @@ spec:
             - name: CTF_JWT_SECRET
               valueFrom:
                 secretKeyRef: { name: ctf-school-secret, key: jwt_secret }
+            # Private task-registry pull creds (~/.docker/config.json). The controller
+            # stamps this as a dockerconfigjson Secret + imagePullSecrets into every
+            # session namespace so kubelet can pull private challenge images. Optional:
+            # absent on kind/dev (images are kind-loaded / public) => feature stays off.
+            - name: CTF_REGISTRY_PULLSECRET
+              valueFrom:
+                secretKeyRef: { name: ctf-school-secret, key: registry_dockerconfigjson, optional: true }
         - op: replace
           path: /spec/template/spec/containers/0/args
           value:

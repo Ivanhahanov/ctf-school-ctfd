@@ -16,6 +16,44 @@ CTFd._internal.challenge.submit = function (preview) {
         .then(function (r) { return r; });
 };
 
+// ── i18n ───────────────────────────────────────────────────────────────────
+// Locale comes from <html lang> (set by the theme from CTFd's get_locale()), so
+// the card follows the site language switcher. Falls back to English.
+var _LAB_LANG = (document.documentElement.lang || "en").toLowerCase().slice(0, 2);
+var _LAB_STR = {
+    ru: {
+        "Idle": "Ожидание",
+        "Running": "Работает",
+        "Starting": "Запуск",
+        "Stopping": "Остановка",
+        "Failed": "Ошибка",
+        "Checking status…": "Проверка статуса…",
+        "Start Lab": "Запустить стенд",
+        "Starting…": "Запуск…",
+        "Stopping…": "Остановка…",
+        "Restarting…": "Перезапуск…",
+        "Open Terminal Workspace": "Открыть терминал",
+        "Open Desktop Workspace": "Открыть рабочий стол",
+        "Connecting to lab service…": "Подключение к сервису…",
+        "Retrying…": "Повтор…",
+        "Services are reachable only from inside your workspace.":
+            "Сервисы доступны только внутри вашего окружения.",
+        "Provisioning your workspace…": "Разворачиваем ваше окружение…",
+        "Shutting the workspace down…": "Останавливаем окружение…",
+        "Recreating your workspace…": "Пересоздаём ваше окружение…",
+        "Requesting a workspace…": "Запрашиваем окружение…",
+        "The lab failed to start.": "Не удалось запустить стенд.",
+        " Press Start to try again.": " Нажмите «Запустить», чтобы попробовать снова.",
+        "An isolated desktop workspace — start it to solve this challenge.":
+            "Изолированное рабочее окружение — запустите его, чтобы решить задание.",
+        "Something went wrong. Try again.": "Что-то пошло не так. Попробуйте снова.",
+        "You’re running the maximum number of labs": "Вы запустили максимальное число стендов",
+        ". Stop one to start this challenge. ": ". Остановите один, чтобы запустить это задание. ",
+        "Manage your labs →": "Управление стендами →",
+    },
+};
+function T(s) { var m = _LAB_STR[_LAB_LANG]; return (m && m[s]) || s; }
+
 // ── per-challenge state ────────────────────────────────────────────────────
 var _labState = {};   // id -> { timer, interval }
 var _labSeen  = {};   // id -> have we ever rendered a real status?
@@ -68,13 +106,13 @@ function _show(el, on) {
 
 // status pill — colour + label only; the shape never changes (no reflow)
 var _PILL = {
-    idle:    ["is-idle", "Idle"],
-    Running: ["is-run",  "Running"],
-    Pending: ["is-busy", "Starting"],
-    Provisioning: ["is-busy", "Starting"],
-    Terminating:  ["is-busy", "Stopping"],
-    Failed:  ["is-fail", "Failed"],
-    error:   ["is-fail", "Failed"],
+    idle:    ["is-idle", T("Idle")],
+    Running: ["is-run",  T("Running")],
+    Pending: ["is-busy", T("Starting")],
+    Provisioning: ["is-busy", T("Starting")],
+    Terminating:  ["is-busy", T("Stopping")],
+    Failed:  ["is-fail", T("Failed")],
+    error:   ["is-fail", T("Failed")],
 };
 function _pill(id, phaseKey, textOverride) {
     var el = _el(id, "lab-pill"), t = _el(id, "lab-pill-text");
@@ -94,23 +132,23 @@ function _primary(id, mode, opts) {
     function body(icon, label) { return icon + '<span id="lab-primary-text-' + id + '">' + _esc(label) + "</span>"; }
     if (mode === "checking") {
         a.classList.add("btn-secondary", "disabled");
-        a.innerHTML = body(_SPIN, opts.label || "Checking status…");
+        a.innerHTML = body(_SPIN, opts.label || T("Checking status…"));
     } else if (mode === "start") {
         a.classList.add("btn-success");
-        a.innerHTML = body('<i class="fas fa-play"></i>', opts.label || "Start Lab");
+        a.innerHTML = body('<i class="fas fa-play"></i>', opts.label || T("Start Lab"));
         a.onclick = function (e) { e.preventDefault(); labAction(id, "start"); };
     } else if (mode === "starting") {
         a.classList.add("btn-secondary", "disabled");
-        a.innerHTML = body(_SPIN, opts.label || "Starting…");
+        a.innerHTML = body(_SPIN, opts.label || T("Starting…"));
     } else if (mode === "stopping") {
         a.classList.add("btn-secondary", "disabled");
-        a.innerHTML = body(_SPIN, opts.label || "Stopping…");
+        a.innerHTML = body(_SPIN, opts.label || T("Stopping…"));
     } else if (mode === "open") {
         a.classList.add("btn-primary");
         a.setAttribute("href", "/lab/" + id + "/enter");
         a.setAttribute("target", "_blank"); a.setAttribute("rel", "noopener");
         a.innerHTML = body('<i class="fas ' + (opts.terminal ? "fa-terminal" : "fa-display") + '"></i>',
-                           opts.label || (opts.terminal ? "Open Terminal Workspace" : "Open Desktop Workspace"));
+                           opts.label || (opts.terminal ? T("Open Terminal Workspace") : T("Open Desktop Workspace")));
     }
 }
 
@@ -152,28 +190,28 @@ function _labUpdateUI(id, data) {
         _pill(id, "Running");
         _primary(id, "open", { terminal: ws.type && ws.type !== "VNC" });
         _secondary(id, true, true);
-        _hint(id, '<i class="fas fa-lock me-1 opacity-75"></i>Services are reachable only from inside your workspace.');
+        _hint(id, '<i class="fas fa-lock me-1 opacity-75"></i>' + T("Services are reachable only from inside your workspace."));
     } else if (booting) {
         _pill(id, phase);
         _primary(id, "starting");
         _secondary(id, true, false);   // allow cancelling a provisioning lab
-        _hint(id, _esc(data.message || "Provisioning your workspace…"));
+        _hint(id, _esc(data.message || T("Provisioning your workspace…")));
     } else if (stopping) {
         _pill(id, "Terminating");
         _primary(id, "stopping");
         _secondary(id, false, false);
-        _hint(id, _esc(data.message || "Shutting the workspace down…"));
+        _hint(id, _esc(data.message || T("Shutting the workspace down…")));
     } else if (failed) {
         _pill(id, "Failed");
-        _primary(id, "start", { label: "Start Lab" });
+        _primary(id, "start", { label: T("Start Lab") });
         _secondary(id, false, false);
         _hint(id, '<i class="fas fa-triangle-exclamation me-1"></i>'
-              + _esc(data.message || "The lab failed to start.") + " Press Start to try again.", "err");
+              + _esc(data.message || T("The lab failed to start.")) + T(" Press Start to try again."), "err");
     } else { // idle
         _pill(id, "idle");
         _primary(id, "start");
         _secondary(id, false, false);
-        _hint(id, "An isolated desktop workspace — start it to solve this challenge.");
+        _hint(id, T("An isolated desktop workspace — start it to solve this challenge."));
     }
 
     _labEnsurePoll(id, booting || stopping ? 3000 : 8000);
@@ -189,8 +227,8 @@ function _labRefreshStatus(id) {
             _labFails[id] = (_labFails[id] || 0) + 1;
             if (_labSeen[id]) return;            // keep last good UI, just retry silently
             if (_labFails[id] >= 2) {
-                _primary(id, "checking", { label: "Connecting to lab service…" });
-                _hint(id, "Retrying…");
+                _primary(id, "checking", { label: T("Connecting to lab service…") });
+                _hint(id, T("Retrying…"));
             }
         });
 }
@@ -201,15 +239,15 @@ function labAction(id, action) {
     // optimistic UI — reflect the intent immediately (no waiting for the poll)
     if (action === "start" || action === "reload") {
         _pill(id, "Pending");
-        _primary(id, "starting", { label: action === "reload" ? "Restarting…" : "Starting…" });
+        _primary(id, "starting", { label: action === "reload" ? T("Restarting…") : T("Starting…") });
         _secondary(id, true, false);
-        _hint(id, action === "reload" ? "Recreating your workspace…" : "Requesting a workspace…");
+        _hint(id, action === "reload" ? T("Recreating your workspace…") : T("Requesting a workspace…"));
         _labEnsurePoll(id, 3000);
     } else if (action === "stop") {
         _pill(id, "Terminating");
         _primary(id, "stopping");
         _secondary(id, false, false);
-        _hint(id, "Shutting the workspace down…");
+        _hint(id, T("Shutting the workspace down…"));
     }
 
     fetch("/api/v1/lab/" + id + "/" + action, {
@@ -230,7 +268,7 @@ function labAction(id, action) {
             // revert the optimistic UI and explain the failure on the card
             _labRefreshStatus(id);
             _hint(id, '<i class="fas fa-circle-exclamation me-1"></i>'
-                  + _esc((err && err.message) || "Something went wrong. Try again."), "err");
+                  + _esc((err && err.message) || T("Something went wrong. Try again.")), "err");
         }
     })
     .finally(function () { _labSetBusy(id, false); });
@@ -243,9 +281,9 @@ function _labLimit(id, err) {
     _secondary(id, false, false);
     var have = err.active, max = err.limit;
     var count = (have != null && max != null) ? (" (" + have + "/" + max + ")") : "";
-    _hint(id, '<i class="fas fa-triangle-exclamation me-1"></i>You’re running the maximum number of labs'
-          + count + '. Stop one to start this challenge. '
-          + '<a href="/labs">Manage your labs →</a>', "warn");
+    _hint(id, '<i class="fas fa-triangle-exclamation me-1"></i>' + T("You’re running the maximum number of labs")
+          + count + T(". Stop one to start this challenge. ")
+          + '<a href="/labs">' + T("Manage your labs →") + '</a>', "warn");
 }
 
 // First-open race: CTFd renders the challenge view at a moment not synchronised

@@ -1,0 +1,75 @@
+# Private task-image registry (CNCF Distribution / registry:2). Holds CHALLENGE images,
+# which bake challenge source — so unlike the platform desktop images (public Docker Hub),
+# these must not leave the cluster. Reached ONLY through the gateway (HTTPS + basic auth);
+# see networkpolicy.yaml + httproute.yaml. TLS is terminated at the gateway with the
+# wildcard cert; the registry itself speaks plain HTTP on :5000 inside the mesh.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: registry
+  namespace: registry
+  labels: { app: registry }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }   # single writer on a RWO volume
+  selector:
+    matchLabels: { app: registry }
+  template:
+    metadata:
+      labels: { app: registry }
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000            # so the RWO volume is group-writable by the registry
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: registry
+          image: registry:2.8.3
+          imagePullPolicy: IfNotPresent
+          ports:
+            - { name: registry, containerPort: 5000 }
+          env:
+            - { name: REGISTRY_HTTP_ADDR, value: ":5000" }
+            # Emit RELATIVE Location URLs on blob uploads — correct behind the
+            # TLS-terminating gateway (otherwise the registry leaks its internal host).
+            - { name: REGISTRY_HTTP_RELATIVEURLS, value: "true" }
+            - { name: REGISTRY_STORAGE_FILESYSTEM_ROOTDIRECTORY, value: "/var/lib/registry" }
+            - { name: REGISTRY_STORAGE_DELETE_ENABLED, value: "true" }   # allow GC/deletes
+            - { name: REGISTRY_AUTH, value: "htpasswd" }
+            - { name: REGISTRY_AUTH_HTPASSWD_REALM, value: "CTF School Task Registry" }
+            - { name: REGISTRY_AUTH_HTPASSWD_PATH, value: "/auth/htpasswd" }
+            # Shared HMAC for registry HTTP state (upload tokens). From the auth secret.
+            - name: REGISTRY_HTTP_SECRET
+              valueFrom:
+                secretKeyRef: { name: registry-auth, key: http_secret }
+          volumeMounts:
+            - { name: data, mountPath: /var/lib/registry }
+            - { name: auth, mountPath: /auth, readOnly: true }
+            - { name: tmp,  mountPath: /tmp }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits:   { cpu: "1", memory: 512Mi }
+          # /v2/ answers 401 (auth challenge) so an HTTP probe would flap — use TCP.
+          readinessProbe:
+            tcpSocket: { port: registry }
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket: { port: registry }
+            initialDelaySeconds: 5
+            periodSeconds: 20
+      volumes:
+        - name: data
+          persistentVolumeClaim: { claimName: registry-data }
+        - name: auth
+          secret:
+            secretName: registry-auth
+            items: [{ key: htpasswd, path: htpasswd }]
+        - name: tmp
+          emptyDir: {}

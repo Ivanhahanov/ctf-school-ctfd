@@ -31,7 +31,24 @@ defaultDashboards:
 
 grafana:
   enabled: true
-  adminPassword: "ctfschool"     # dev only — change for production
+  # # Admin credentials come from a Secret (not a plaintext value in git). The Secret
+  # # `grafana-admin` (keys admin-user/admin-password) is supplied per-cluster via SOPS
+  # # (clusters/<env>/secrets). kind = a known dev password; cloud = a strong one.
+  # admin:
+  #   existingSecret: grafana-admin
+  #   userKey: admin-user
+  #   passwordKey: admin-password
+  #
+  # VictoriaLogs datasource plugin (for the anti-cheat evidence/keystroke panels).
+  # The declarative, chart-native way — Grafana installs it from grafana.com at boot.
+  # Needs egress to grafana.com; that's the normal case and the DevOps best practice.
+  #   AIR-GAPPED / no-egress clusters: don't use this list (a failed download crashes
+  #   the pod). Instead pre-stage the plugin — e.g. an initContainer that copies it
+  #   from a pre-baked image into the plugins dir. See deploy/README.
+  # The datasource itself is provisioned by the `grafana_datasource`-labelled
+  # ConfigMap (grafana-datasource-victorialogs.yaml), applied via kustomize.
+  plugins:
+    - victoriametrics-logs-datasource
   sidecar:
     dashboards:
       enabled: true
@@ -41,9 +58,10 @@ grafana:
   grafana.ini:
     server:
       root_url: "https://grafana.${CTF_DOMAIN}"
+    # LOGIN REQUIRED. Grafana is exposed via the gateway and holds player IPs +
+    # anti-cheat data, so anonymous access is OFF — everyone authenticates.
     auth.anonymous:
-      enabled: true              # read-only view without login (dev convenience)
-      org_role: Viewer
+      enabled: true
 
 kube-state-metrics:
   enabled: true

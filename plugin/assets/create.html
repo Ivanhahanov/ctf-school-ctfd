@@ -1,57 +1,65 @@
 {% extends "admin/challenges/create.html" %}
 
+{# i18n: render Russian when the active locale is ru, English otherwise. #}
+{% set _ru = (get_locale()|string).lower().startswith('ru') %}
+{% macro t(en, ru) %}{{ ru if _ru else en }}{% endmacro %}
+
 {% block header %}
 <div class="alert alert-secondary" role="alert">
-    Lab challenges use dynamic scoring (value decreases with solves) and give
+    {{ t('Lab challenges use dynamic scoring (value decreases with solves) and give
     players a personal lab environment they can start/stop/reload.
-    Flags are derived via HMAC-SHA256 — no static flags needed.
+    Flags are derived via HMAC-SHA256 — no static flags needed.',
+    'Задания-стенды используют динамический подсчёт очков (стоимость снижается с числом решений)
+    и дают игроку персональное рабочее окружение, которое можно запускать/останавливать/пересоздавать.
+    Флаги вычисляются через HMAC-SHA256 — статические флаги не нужны.') }}
 </div>
 {% endblock %}
 
 {% block value %}
 <div class="form-group">
-    <label>Initial Value<br>
-        <small class="form-text text-muted">Points awarded for the first solve.</small>
+    <label>{{ t('Initial Value', 'Начальная стоимость') }}<br>
+        <small class="form-text text-muted">{{ t('Points awarded for the first solve.', 'Очки за первое решение.') }}</small>
     </label>
     <input type="number" class="form-control" name="initial" placeholder="500" required>
 </div>
 
 <div class="form-group">
-    <label>Decay Function</label>
+    <label>{{ t('Decay Function', 'Функция затухания') }}</label>
     <select name="function" class="custom-select">
-        <option value="logarithmic">Logarithmic</option>
-        <option value="linear">Linear</option>
+        <option value="logarithmic">{{ t('Logarithmic', 'Логарифмическая') }}</option>
+        <option value="linear">{{ t('Linear', 'Линейная') }}</option>
     </select>
 </div>
 
 <div class="form-group">
-    <label>Decay<br>
-        <small class="form-text text-muted">Solves before minimum is reached (logarithmic) or points deducted per solve (linear).</small>
+    <label>{{ t('Decay', 'Затухание') }}<br>
+        <small class="form-text text-muted">{{ t('Solves before minimum is reached (logarithmic) or points deducted per solve (linear).', 'Число решений до достижения минимума (логарифмическая) или сколько очков вычитается за каждое решение (линейная).') }}</small>
     </label>
     <input type="number" class="form-control" name="decay" min="1" placeholder="50" required>
 </div>
 
 <div class="form-group">
-    <label>Minimum Value<br>
-        <small class="form-text text-muted">Floor — challenge will never drop below this.</small>
+    <label>{{ t('Minimum Value', 'Минимальная стоимость') }}<br>
+        <small class="form-text text-muted">{{ t('Floor — challenge will never drop below this.', 'Нижний порог — стоимость не опустится ниже этого значения.') }}</small>
     </label>
     <input type="number" class="form-control" name="minimum" placeholder="100" required>
 </div>
 
 <div class="form-group">
-    <label>Lab Space Ref<br>
+    <label>{{ t('Lab Space Ref', 'Lab Space Ref') }}<br>
         <small class="form-text text-muted">
-            Cluster-scoped <code>LabSpace</code> CRD name (e.g. <code>owasp-top10</code>).
+            {{ t('Cluster-scoped', 'Имя кластерного CRD') }} <code>LabSpace</code> {{ t('CRD name (e.g.', '(например,') }} <code>owasp-top10</code>{{ t(').', ').') }}
         </small>
     </label>
     <input type="text" class="form-control" name="lab_space_ref" placeholder="owasp-top10" required>
 </div>
 
 <div class="form-group">
-    <label>Flag Service<br>
+    <label>{{ t('Flag Service', 'Flag Service') }}<br>
         <small class="form-text text-muted">
-            <code>LabService</code> CRD name whose HMAC env-var becomes the flag.
-            Leave empty to fall back to static CTFd flags.
+            {{ t('CRD name', 'Имя CRD') }} <code>LabService</code>{{ t(', whose HMAC env-var becomes the flag.
+            Leave empty to fall back to static CTFd flags.', ', HMAC-переменная которого становится флагом.
+            Оставьте пустым, чтобы использовать статические флаги CTFd.') }}
         </small>
     </label>
     <input type="text" class="form-control" name="flag_service" placeholder="web">

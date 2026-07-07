@@ -1,0 +1,20 @@
+# Expose the registry at registry.${CTF_DOMAIN} through the shared gateway, HTTPS ONLY
+# (sectionName pins the https-wildcard listener — the *.${CTF_DOMAIN} wildcard cert
+# terminates TLS). Docker requires TLS for a remote registry, so we deliberately do NOT
+# attach to the plaintext :80 listener.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: registry
+  namespace: registry
+spec:
+  parentRefs:
+    - name: ctfd
+      namespace: ctfd
+      sectionName: https-wildcard
+  hostnames:
+    - registry.${CTF_DOMAIN}
+  rules:
+    - backendRefs:
+        - name: registry
+          port: 5000

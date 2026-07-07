@@ -19,11 +19,11 @@ spec:
   ref:
     tag: "${TAG}"
   insecure: ${OCI_INSECURE}
-  verify:
-    provider: cosign
-    matchOIDCIdentity:
-      - issuer: "^https://token\\.actions\\.githubusercontent\\.com$"
-        subject: "^https://github\\.com/Ivanhahanov/ctf-school-ctfd/\\.github/workflows/release\\.yml@refs/.+$"
+  # verify:
+  #   provider: cosign
+  #   matchOIDCIdentity:
+  #     - issuer: "^https://token\\.actions\\.githubusercontent\\.com$"
+  #       subject: "^https://github\\.com/Ivanhahanov/ctf-school-ctfd/\\.github/workflows/release\\.yml@refs/.+$"
 ---
 apiVersion: source.toolkit.fluxcd.io/v1
 kind: OCIRepository
@@ -36,11 +36,11 @@ spec:
   ref:
     tag: "${TAG}"
   insecure: ${OCI_INSECURE}
-  verify:
-    provider: cosign
-    matchOIDCIdentity:
-      - issuer: "^https://token\\.actions\\.githubusercontent\\.com$"
-        subject: "^https://github\\.com/Ivanhahanov/ctf-school-controller/\\.github/workflows/release\\.yml@refs/.+$"
+  # verify:
+  #   provider: cosign
+  #   matchOIDCIdentity:
+  #     - issuer: "^https://token\\.actions\\.githubusercontent\\.com$"
+  #       subject: "^https://github\\.com/Ivanhahanov/ctf-school-controller/\\.github/workflows/release\\.yml@refs/.+$"
 ---
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization

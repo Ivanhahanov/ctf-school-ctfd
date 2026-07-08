@@ -41,6 +41,8 @@
   --alfa-red-dark: #c8210f;
   --alfa-cyan: #05ffff;
   --alfa-cyan-dim: #06c7c7;
+  --alfa-green: #29c830;
+  --alfa-green-bright: #37d63e;
   --alfa-black: #000000;
   --alfa-bg: #06070a;
   --alfa-surface: #0d1117;
@@ -276,10 +278,20 @@ button.challenge-button:hover {
   box-shadow: 0 6px 24px rgba(5, 255, 255, 0.18);
   transform: translateY(-2px);
 }
-.challenge-button.solved-challenge,
-.challenge-button.solved-challenge:hover {
-  border-color: var(--alfa-red) !important;
-  box-shadow: inset 0 0 0 1px var(--alfa-red), 0 6px 24px rgba(239, 49, 36, 0.25);
+/* Solved tiles glow green (the class the board actually sets is `challenge-solved`).
+   The base .challenge-button rule above uses `background-color … !important`, so the
+   solved fill must also be !important to win — otherwise solved tiles stay dark. */
+.challenge-button.challenge-solved,
+.challenge-button.challenge-solved:hover {
+  background-color: rgba(41, 200, 63, 0.16) !important;
+  border-color: var(--alfa-green) !important;
+  color: #fff !important;
+  box-shadow: inset 0 0 0 1px var(--alfa-green), 0 6px 24px rgba(41, 200, 63, 0.28);
+}
+.challenge-button.challenge-solved:hover {
+  border-color: var(--alfa-green-bright) !important;
+  box-shadow: inset 0 0 0 1px var(--alfa-green-bright), 0 8px 28px rgba(41, 200, 63, 0.38);
+  transform: translateY(-2px);
 }
 .challenge-button .challenge-name { color: #fff; font-weight: 700; }
 .challenge-button .challenge-value { color: var(--alfa-cyan); }

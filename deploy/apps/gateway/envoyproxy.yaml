@@ -18,3 +18,45 @@ spec:
     kubernetes:
       envoyService:
         externalTrafficPolicy: Cluster
+
+      # Data-plane sizing. Every noVNC workspace stream AND the CTFd API/scoreboard
+      # traverse this one Envoy fleet, so a single replica was both a SPOF and a
+      # throughput ceiling (S2 in DEVOPS-SRE-REVIEW: "single-replica gateway carrying
+      # all noVNC streams"). Envoy is cheap, and the failure we're buying out — players
+      # unable to reach their workspace at kickoff — is far more expensive than a few
+      # spare pods, so we keep a healthy floor and let an HPA absorb the start-of-event
+      # connection storm rather than react to it too late.
+      envoyDeployment:
+        pod:
+          # Spread replicas across nodes so one node loss can't take the data plane
+          # down. Soft (ScheduleAnyway) so it never blocks scheduling on a small cluster.
+          topologySpreadConstraints:
+            - maxSkew: 1
+              topologyKey: kubernetes.io/hostname
+              whenUnsatisfiable: ScheduleAnyway
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: envoy
+        container:
+          resources:
+            requests:
+              cpu: "250m"
+              memory: 256Mi
+            limits:
+              cpu: "2"
+              memory: 1Gi
+
+      # HPA manages the replica count (do NOT also set envoyDeployment.replicas —
+      # they conflict). minReplicas is the peak-ready floor for the kickoff burst;
+      # it scales up on CPU (TLS termination + proxying is CPU-bound) before latency
+      # is felt. Requires metrics-server (present on managed k8s).
+      envoyHpa:
+        minReplicas: 3
+        maxReplicas: 8
+        metrics:
+          - type: Resource
+            resource:
+              name: cpu
+              target:
+                type: Utilization
+                averageUtilization: 70

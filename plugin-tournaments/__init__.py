@@ -155,7 +155,10 @@ def tournament_board():
         bracket_name=bracket.name,
         bracket_id=bid,
         rows=_standings_rows(bid),
-        is_admin=admin,
+        # NOTE: do NOT name this `is_admin` — that would shadow CTFd's template
+        # global `is_admin()` (a callable) inside base.html/navbar and blow up with
+        # "'bool' object is not callable".
+        viewer_is_admin=admin,
     )
 
 
@@ -247,7 +250,7 @@ _TOURNAMENT_PAGE = """
       <i class="fas fa-trophy me-2 opacity-75"></i>{{ bracket_name }}
       <span class="badge bg-secondary ms-2">{{ t('Private tournament', 'Закрытый турнир') }}</span>
     </h2>
-    {% if is_admin %}<a href="/admin/tournaments" class="btn btn-outline-secondary btn-sm">
+    {% if viewer_is_admin %}<a href="/admin/tournaments" class="btn btn-outline-secondary btn-sm">
       <i class="fas fa-wrench me-1"></i>{{ t('Manage', 'Управление') }}</a>{% endif %}
   </div>
   <div class="text-muted small mb-3">

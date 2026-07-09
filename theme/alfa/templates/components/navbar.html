@@ -55,19 +55,12 @@
         {% endif %}
 
         {# Private tournament: shown ONLY to members of a hidden bracket (set by the
-           tournament plugin's context processor), not to every player. #}
+           hidden_tournaments plugin's context processor), not to every player.
+           Admin management lives in the Admin Panel menu (registered by the plugin). #}
         {% if tournament_bracket_id is defined and tournament_bracket_id %}
           <li class="nav-item">
             <a class="nav-link" href="/tournament">
               <i class="fas fa-trophy pe-1 opacity-75"></i>{% trans %}Tournament{% endtrans %}
-            </a>
-          </li>
-        {% endif %}
-
-        {% if is_admin() %}
-          <li class="nav-item">
-            <a class="nav-link" href="/admin/tournaments">
-              <i class="fas fa-trophy pe-1 opacity-75"></i>{% trans %}Tournaments{% endtrans %}
             </a>
           </li>
         {% endif %}

@@ -886,9 +886,4 @@ def load(app):
     register_plugin_assets_directory(app, base_path="/plugins/lab_manager/assets/")
     register_user_page_menu_bar(_LazyRuEn("Labs", "Стенды"), "/labs")
     CHALLENGE_CLASSES["lab"] = LabChallengeType
-
-    # Hidden Tournaments (private brackets): a separate feature module.
-    from . import tournament
-    tournament.init(app)
-
     logger.info("CTFd Lab Manager plugin loaded")

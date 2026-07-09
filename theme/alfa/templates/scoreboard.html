@@ -23,7 +23,11 @@
           <nav class="nav nav-pills nav-fill">
             <button :class="{'nav-link': true, 'active': !activeBracket}" @click="activeBracket=null">{% trans %}All{% endtrans %}</button>
             <template x-for="bracket in brackets">
-              <button :class="{'nav-link': true, 'active': activeBracket == bracket.id}" x-text="bracket.name" @click="activeBracket=bracket.id"></button>
+              {# Hidden tournaments have no members in the public standings (their teams
+                 are hidden), so their tab would be empty — don't render it publicly. #}
+              <template x-if="standings.some(s => s.bracket_id == bracket.id)">
+                <button :class="{'nav-link': true, 'active': activeBracket == bracket.id}" x-text="bracket.name" @click="activeBracket=bracket.id"></button>
+              </template>
             </template>
           </nav>
         </div>

@@ -56,11 +56,16 @@
 
         {# Private tournament: shown ONLY to members of a hidden bracket (set by the
            hidden_tournaments plugin's context processor), not to every player.
-           Admin management lives in the Admin Panel menu (registered by the plugin). #}
+           Admin management lives in the Admin Panel menu (registered by the plugin).
+           {% trans %} isn't used here: "Tournament" is a string WE added, and core's
+           compiled ru.mo catalog has no entry for it (only translates CTFd's own
+           original strings) — {% trans %} would silently fall back to English. Same
+           get_locale() check the plugin's own templates use for this reason. #}
         {% if tournament_bracket_id is defined and tournament_bracket_id %}
+          {% set _ru = (get_locale()|string).lower().startswith('ru') %}
           <li class="nav-item">
             <a class="nav-link" href="/tournament">
-              <i class="fas fa-trophy pe-1 opacity-75"></i>{% trans %}Tournament{% endtrans %}
+              <i class="fas fa-trophy pe-1 opacity-75"></i>{{ 'Турнир' if _ru else 'Tournament' }}
             </a>
           </li>
         {% endif %}

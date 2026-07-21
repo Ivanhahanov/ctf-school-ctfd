@@ -90,6 +90,21 @@ spec:
     substituteFrom:
       - { kind: ConfigMap, name: cluster-config }
 ---
+# Pre-warms every node's image cache (platform desktop images + guard sidecar, and
+# per-challenge images from the task-registry) so a LabSession landing on a freshly
+# autoscaled node doesn't sit through a multi-GB cold pull. Needs `registry` up (its
+# own DaemonSet pulls FROM it) and its `registry-pull` dockerconfigjson Secret
+# supplied the same way registry-auth is — see deploy/apps/image-prepuller/README.md.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata: { name: image-prepuller, namespace: flux-system }
+spec:
+  dependsOn: [{ name: infrastructure }, { name: registry }]
+  interval: 30m
+  path: ./deploy/apps/image-prepuller
+  prune: true
+  sourceRef: { kind: OCIRepository, name: flux-system }
+---
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata: { name: monitoring-config, namespace: flux-system }

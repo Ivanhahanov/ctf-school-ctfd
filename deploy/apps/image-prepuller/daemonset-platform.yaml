@@ -1,0 +1,86 @@
+# Warms every node's containerd cache with the PLATFORM images — the shared desktop
+# variants (public Docker Hub, no pull secret needed) and the guard sidecar every
+# workspace pod gets. These change rarely (a vpc/ release), unlike the per-challenge
+# images in daemonset-challenges.yaml, so this file is hand-maintained, not generated.
+#
+# WHY a DaemonSet: it's the standard Kubernetes answer to "new node joins an
+# autoscaled node group with an empty image cache" — the DaemonSet controller
+# schedules a copy onto a node the moment it's Ready, ahead of (and independent of)
+# whatever real LabSession workload the autoscaler added the node FOR. By the time a
+# player's pod lands there, the image pull for the shared layers is already done (or
+# well underway) instead of blocking their "Start Lab" click.
+#
+# Each container's only job is to hold the image resident: kubelet pulls it as part
+# of container creation, then the container just sleeps — it never runs the image's
+# real entrypoint (which would try to boot a full desktop). Resources are pinned tiny
+# since nothing here does real work; the point is the pull, not the process.
+#
+# The guard image is the one exception: it's a distroless static binary with NO
+# shell/sleep (confirmed empirically — `sleep`/`sh` both fail with "executable file
+# not found"), so it can't use the sleep-override trick. It fails closed on a missing
+# GUARD_SECRET (real behavior, not a bug — see workspace_guard.go), so we hand it an
+# unused dummy secret to let it start cleanly and idle on :8080 instead of
+# crash-looping; nothing ever routes traffic to this copy.
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: image-prepuller-platform
+  namespace: image-prepuller
+  labels: { app: image-prepuller, tier: platform }
+spec:
+  selector:
+    matchLabels: { app: image-prepuller, tier: platform }
+  template:
+    metadata:
+      labels: { app: image-prepuller, tier: platform }
+    spec:
+      # Run on every node unconditionally, including ones with taints meant to steer
+      # normal workloads (e.g. a fresh autoscaler node not yet marked schedulable for
+      # everything) — the whole point is to pre-warm it before real pods arrive.
+      tolerations:
+        - operator: Exists
+      automountServiceAccountToken: false
+      securityContext:
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: base
+          image: explabs/ctf-school-desktop-base:latest
+          <<: &holder
+            imagePullPolicy: IfNotPresent
+            command: ["sleep", "infinity"]
+            resources:
+              requests: { cpu: 5m, memory: 16Mi }
+              limits: { cpu: 20m, memory: 32Mi }
+            securityContext: &sc
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              runAsNonRoot: true
+              runAsUser: 65534 # nobody — these images don't need their own baked-in user, we never exec their entrypoint
+              capabilities: { drop: ["ALL"] }
+        - name: coding
+          image: explabs/ctf-school-desktop-coding:latest
+          <<: *holder
+        - name: datasci
+          image: explabs/ctf-school-desktop-datasci:latest
+          <<: *holder
+        - name: dl
+          image: explabs/ctf-school-desktop-dl:latest
+          <<: *holder
+        - name: joy-service
+          # joy's LabService (the one challenge that stays on a stock public image
+          # instead of a built one) — tiny, but free to include.
+          image: python:3.11-alpine
+          <<: *holder
+        - name: guard
+          image: docker.io/explabs/ctf-school-guard:latest
+          imagePullPolicy: IfNotPresent
+          # No command override — see the top-of-file note. Real env vars
+          # (GUARD_TEAM/GUARD_SID/etc.) are left unset; the binary defaults them
+          # to empty and just idles on :8080 with no real session attached.
+          env:
+            - name: GUARD_SECRET
+              value: "prepuller-unused-dummy-secret"
+          resources:
+            requests: { cpu: 5m, memory: 16Mi }
+            limits: { cpu: 20m, memory: 32Mi }
+          securityContext: *sc

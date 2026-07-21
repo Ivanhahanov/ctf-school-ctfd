@@ -1,0 +1,11 @@
+# The `image-prepuller` namespace itself is NOT here — it's created by
+# deploy/infrastructure/namespaces.yaml (same reason as controller-system/registry:
+# it must exist before the `secrets` Kustomization applies registry-pull into it).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - daemonset-platform.yaml
+  - daemonset-challenges.yaml
+# The `registry-pull` Secret (kubernetes.io/dockerconfigjson) is NOT here either —
+# it's supplied per cluster via the SOPS `secrets` flow, like registry-auth /
+# ctf-school-secret (see README.md).

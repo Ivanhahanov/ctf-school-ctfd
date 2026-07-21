@@ -51,10 +51,9 @@
                   {{ form.email(class="form-control", value=email) }}
                 </div>
 
-                <div class="mb-3">
-                  <b>{{ form.language.label(class="form-label") }}</b>
-                  {{ form.language(class="form-select", value=language) }}
-                </div>
+                {# form.language intentionally not rendered: players shouldn't be able
+                   to change the site language themselves — see navbar.html for the
+                   other half of this (the navbar "Change language" dropdown). #}
 
                 <hr>
 

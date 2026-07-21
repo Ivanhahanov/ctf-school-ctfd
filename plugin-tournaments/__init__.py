@@ -9,11 +9,11 @@ Standalone plugin (no dependency on lab_manager):
   - Foundation: native Brackets. Teams/Users already carry `bracket_id`.
   - Exclude from the general scoreboard: members of a hidden bracket get
     `hidden=True`. Core `get_standings()` filters `hidden==False` for non-admins,
-    so the whole public surface (board, graph, top-N) drops them automatically —
-    no core patch, no monkeypatching.
-  - Private dashboard: /tournament renders standings for the caller's own hidden
-    bracket via get_standings(bracket_id=…, admin=True) (admin=True re-includes
-    the hidden members). Access = a member of that bracket, or a site admin.
+    so the whole public surface (board, graph, top-N, per-challenge solves list)
+    drops them automatically — no core patch, no monkeypatching.
+  - Private dashboard: /tournament renders a bracket-scoped scoreboard for the
+    caller's own hidden bracket (see "Score isolation" below). Access = a member
+    of that bracket, or a site admin.
   - Admin UI: /admin/tournaments, linked from the Admin Panel menubar
     (register_admin_plugin_menu_bar) and rendered inside the admin theme
     ({% extends "admin/base.html" %}) — NOT part of the user-facing theme.
@@ -25,21 +25,50 @@ The user theme participates only in presentation: an optional navbar item for
 members (via the `tournament_bracket_id` context-processor variable) and hiding a
 hidden bracket's empty tab on the public scoreboard.
 
+Score isolation (why this doesn't just call core's get_standings())
+--------------------------------------------------------------------
+`hidden=True` keeps a bracket off the public board (core filters `hidden==False`
+everywhere: get_standings(), get_solves_for_challenge_id(), /teams, /teams/<id>).
+But for a DYNAMIC-VALUE challenge, CTFd core also does this:
+
+  - CTFd.plugins.dynamic_challenges.decay.get_solve_count() filters
+    `hidden==False` too, so a hidden team's OWN solves never move the
+    challenge's shared, global `Challenges.value` — good, that direction of
+    isolation is already free.
+  - BUT CTFd.utils.scores.get_standings() scores EVERY account, hidden or
+    not, as `SUM(Challenges.value)` — that one shared, live number. So a
+    hidden bracket's displayed points were still 100% driven by the MAIN
+    competition's decay (their own solves contributed nothing to it), and two
+    hidden teams solving the same challenge always got identical, non-decaying
+    credit against each other — there was no tournament dynamic at all, just a
+    mirror of whatever the public board's value happened to be at that moment.
+
+That breaks both "own rating" and "must not influence each other". The fix:
+_bracket_scores()/_decay_value() below recompute each DYNAMIC challenge's value
+from a solve count scoped to ONLY the viewed bracket's own members, reusing the
+challenge's own initial/minimum/decay/function — never reading or writing the
+shared Challenges.value. Static (non-dynamic) challenges are unaffected: they
+don't decay, so sharing their flat value is correct and was never in question.
+
 NOTE: every hand-written POST form MUST include
 `<input type="hidden" name="nonce" value="{{ Session.nonce }}">` — CTFd rejects
 non-GET requests without the CSRF nonce with a 403.
 """
 
+import datetime
 import json
 import logging
+import math
 
 from flask import Blueprint, redirect, render_template_string, request, abort
 
-from CTFd.models import Brackets, Teams, Users, db
+from CTFd.cache import clear_standings
+from CTFd.models import Awards, Brackets, Challenges, Solves, Teams, Users, db
 from CTFd.plugins import register_admin_plugin_menu_bar
+from CTFd.plugins.dynamic_challenges import DynamicChallenge
 from CTFd.utils import get_config, set_config
 from CTFd.utils.decorators import admins_only, authed_only
-from CTFd.utils.scores import get_standings
+from CTFd.utils.dates import unix_time_to_utc
 from CTFd.utils.user import authed, get_current_user, is_admin
 
 logger = logging.getLogger(__name__)
@@ -101,23 +130,122 @@ def _tournament_ctx():
     return {}
 
 
+# ── bracket-scoped scoring (independent of the shared Challenges.value) ─────────
+# See the "Score isolation" note in the module docstring for WHY this exists
+# instead of a call to CTFd.utils.scores.get_standings().
+
+def _decay_value(challenge, solve_count):
+    """CTFd.plugins.dynamic_challenges.decay's linear()/logarithmic() math, but
+    parameterised on an explicit solve_count instead of their built-in
+    get_solve_count() (which always counts GLOBALLY). Passing a bracket-local
+    count here is what gives a hidden bracket its own, independent decay curve.
+    """
+    if solve_count != 0:
+        solve_count -= 1  # first (bracket-local) solver gets the max value, like core
+
+    initial = challenge.initial
+    minimum = challenge.minimum
+    decay = challenge.decay or 1  # guard divide-by-zero, like core
+
+    if challenge.function == "linear":
+        value = initial - (decay * solve_count)
+    else:  # "logarithmic": CTFd's default, and its fallback for unknown functions
+        value = (((minimum - initial) / (decay ** 2)) * (solve_count ** 2)) + initial
+
+    return max(math.ceil(value), minimum)
+
+
+def _bracket_scores(bracket_id, admin=False):
+    """{account_id: score} for a bracket's own members, plus per-account
+    (last_id, last_date) for tie-breaking — computed ENTIRELY from that
+    bracket's own Solves/Awards. Never reads Challenges.value for a dynamic
+    challenge; never writes it either (no calculate_value()/db writes at all).
+    """
+    Model = _account_model()
+    member_ids = [m.id for m in Model.query.filter_by(bracket_id=bracket_id).all()]
+    if not member_ids:
+        return {}, {}, {}
+
+    freeze = get_config("freeze")
+    freeze_dt = unix_time_to_utc(freeze) if (freeze and not admin) else None
+
+    scores = {mid: 0 for mid in member_ids}
+    last_id = {}
+    last_date = {}
+
+    solves_q = Solves.query.filter(Solves.account_id.in_(member_ids))
+    if freeze_dt is not None:
+        solves_q = solves_q.filter(Solves.date < freeze_dt)
+    solves = solves_q.order_by(Solves.id.asc()).all()
+
+    # Bracket-local solve count per challenge — the whole point: this NEVER
+    # touches the global count core uses for the shared Challenges.value.
+    counts = {}
+    for s in solves:
+        counts[s.challenge_id] = counts.get(s.challenge_id, 0) + 1
+
+    chal_cache = {}
+    for s in solves:
+        chal = chal_cache.get(s.challenge_id)
+        if chal is None:
+            chal = Challenges.query.filter_by(id=s.challenge_id).first()
+            chal_cache[s.challenge_id] = chal
+        if chal is None or chal.value == 0:
+            continue  # deleted / zero-value challenges don't score, like core
+
+        if isinstance(chal, DynamicChallenge):
+            value = _decay_value(chal, counts[s.challenge_id])
+        else:
+            value = chal.value  # static value: no decay, sharing it is correct
+
+        scores[s.account_id] = scores.get(s.account_id, 0) + value
+        last_id[s.account_id] = s.id
+        last_date[s.account_id] = s.date
+
+    awards_q = Awards.query.filter(Awards.account_id.in_(member_ids))
+    if freeze_dt is not None:
+        awards_q = awards_q.filter(Awards.date < freeze_dt)
+    for a in awards_q.order_by(Awards.id.asc()).all():
+        if not a.value:
+            continue
+        scores[a.account_id] = scores.get(a.account_id, 0) + a.value
+        if a.id > last_id.get(a.account_id, -1):
+            last_id[a.account_id] = a.id
+            last_date[a.account_id] = a.date
+
+    return scores, last_id, last_date
+
+
 # ── blueprint ───────────────────────────────────────────────────────────────────
 
 tournaments_bp = Blueprint("hidden_tournaments", __name__)
 
 
-def _standings_rows(bracket_id):
-    """Ranked members of a bracket, INCLUDING the hidden ones (admin=True), so the
-    private board shows the tournament even though the public board hides them."""
-    standings = get_standings(bracket_id=bracket_id, admin=True)
+def _standings_rows(bracket_id, admin=False):
+    """Ranked members of a bracket, scored independently of the main scoreboard
+    (see _bracket_scores) so the private board reflects THIS bracket's own
+    decay, not the public one's."""
+    Model = _account_model()
+    members = Model.query.filter_by(bracket_id=bracket_id).all()
+    scores, last_id, last_date = _bracket_scores(bracket_id, admin=admin)
+
+    ranked = sorted(
+        members,
+        key=lambda m: (
+            -scores.get(m.id, 0),
+            last_date.get(m.id) or datetime.datetime.max,
+            last_id.get(m.id) or 0,
+        ),
+    )
+
     rows = []
-    for i, s in enumerate(standings):
+    for i, m in enumerate(ranked):
         rows.append(
             {
                 "place": i + 1,
-                "account_id": getattr(s, "account_id", None),
-                "name": getattr(s, "name", "?"),
-                "score": getattr(s, "score", 0),
+                "account_id": m.id,
+                "name": m.name,
+                "score": scores.get(m.id, 0),
             }
         )
     return rows
@@ -154,7 +282,7 @@ def tournament_board():
         _TOURNAMENT_PAGE,
         bracket_name=bracket.name,
         bracket_id=bid,
-        rows=_standings_rows(bid),
+        rows=_standings_rows(bid, admin=admin),
         # NOTE: do NOT name this `is_admin` — that would shadow CTFd's template
         # global `is_admin()` (a callable) inside base.html/navbar and blow up with
         # "'bool' object is not callable".
@@ -201,6 +329,12 @@ def admin_toggle(bracket_id):
     for m in _account_model().query.filter_by(bracket_id=bracket_id).all():
         m.hidden = now_hidden
     db.session.commit()
+    # get_standings() (and the public /api/v1/scoreboard, /teams, etc. that key off
+    # it) is @cache.memoize(60) in core — without this, a just-hidden/un-hidden
+    # bracket keeps showing the PRE-toggle visibility on the public board for up to
+    # a minute. Core's own admin routes (PATCH /api/v1/teams/<id>, /users/<id>) call
+    # this same helper whenever they touch `hidden`; we do the same here.
+    clear_standings()
     return redirect("/admin/tournaments")
 
 
@@ -218,6 +352,7 @@ def admin_add(bracket_id):
         m.bracket_id = bracket_id
         m.hidden = bracket_id in hidden_bracket_ids()
         db.session.commit()
+        clear_standings()  # see admin_toggle: this also flips `hidden`
     return redirect("/admin/tournaments")
 
 
@@ -232,6 +367,7 @@ def admin_remove(bracket_id, account_id):
         m.bracket_id = None
         m.hidden = False
         db.session.commit()
+        clear_standings()  # see admin_toggle: this also flips `hidden`
     return redirect("/admin/tournaments")
 
 
